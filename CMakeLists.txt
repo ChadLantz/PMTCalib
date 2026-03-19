@@ -11,27 +11,9 @@ pkg_check_modules(FFTW3 REQUIRED IMPORTED_TARGET fftw3)
 
 file(GLOB SOURCES ${PROJECT_SOURCE_DIR}/src/*.cc)
 file(GLOB HEADERS ${PROJECT_SOURCE_DIR}/src/*.h)
+#remove LinkDef.h from headers list
+list(FILTER HEADERS EXCLUDE REGEX "LinkDef.h$")
 install(FILES ${HEADERS} DESTINATION include)
-
-
-#----------------------------------------------------------------------------
-# Create a shared library from the dictionary
-add_library(PMT_CALIB_LIB SHARED ${SOURCES} )
-target_include_directories(PMT_CALIB_LIB PUBLIC
-    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>
-    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>
-    $<INSTALL_INTERFACE:include>
-    ${ROOT_INCLUDE_DIRS}
-    ${GSL_INCLUDE_DIRS}/gsl
-    ${FFTW3_INCLUDE_DIRS}
-)
-target_link_libraries(PMT_CALIB_LIB PUBLIC
-    ${ROOT_LIBRARIES}
-    ${ROOT_COMPONENT_LIBRARIES}
-    GSL::gsl
-    PkgConfig::FFTW3
-)
-install(TARGETS PMT_CALIB_LIB LIBRARY DESTINATION lib)
 
 #----------------------------------------------------------------------------
 # Generate ROOT dictionary for use in PyROOT notebooks.
@@ -51,6 +33,24 @@ install(FILES
     OPTIONAL
 )
 
+#----------------------------------------------------------------------------
+# Create a shared library from the dictionary
+add_library(PMT_CALIB_LIB SHARED ${SOURCES} G__PMTCalib.cxx)
+target_include_directories(PMT_CALIB_LIB PUBLIC
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>
+    $<INSTALL_INTERFACE:include>
+    ${ROOT_INCLUDE_DIRS}
+    ${GSL_INCLUDE_DIRS}/gsl
+    ${FFTW3_INCLUDE_DIRS}
+)
+target_link_libraries(PMT_CALIB_LIB PUBLIC
+    ${ROOT_LIBRARIES}
+    ${ROOT_COMPONENT_LIBRARIES}
+    GSL::gsl
+    PkgConfig::FFTW3
+)
+install(TARGETS PMT_CALIB_LIB LIBRARY DESTINATION lib)
 
 #----------------------------------------------------------------------------
 # Export include dir variable for downstream use (optional)
