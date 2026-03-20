@@ -16,36 +16,53 @@ install(FILES ${HEADERS} DESTINATION include)
 
 #----------------------------------------------------------------------------
 # Generate ROOT dictionary for use in PyROOT notebooks.
-ROOT_GENERATE_DICTIONARY(G__PMTCalib
-    ${HEADERS}
-    LINKDEF ${PROJECT_SOURCE_DIR}/LinkDef.h
-    MODULE PMTCalib
-    OPTIONS
-    -I${PROJECT_SOURCE_DIR}/src
-)
-
-install(FILES
-    $<TARGET_FILE_DIR:PMT_CALIB_LIB>/libPMTCalib_rdict.pcm
-    $<TARGET_FILE_DIR:PMT_CALIB_LIB>/libPMTCalib.rootmap
-    DESTINATION lib
-)
-
-#----------------------------------------------------------------------------
-# Create a shared library from the dictionary
-add_library(PMT_CALIB_LIB SHARED ${SOURCES} G__PMTCalib.cxx)
-target_include_directories(PMT_CALIB_LIB PUBLIC
+add_library(PMTCalib SHARED ${SOURCES} ${G__PMTCalib})
+target_include_directories(PMTCalib PUBLIC
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>
-    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>
     $<INSTALL_INTERFACE:include>
     ${ROOT_INCLUDE_DIRS}
     ${FFTW3_INCLUDE_DIRS}
 )
-target_link_libraries(PMT_CALIB_LIB PUBLIC
+target_link_libraries(PMTCalib PUBLIC
     ROOT::Core ROOT::Hist ROOT::MathMore
     ${ROOT_COMPONENT_LIBRARIES}
     PkgConfig::FFTW3
 )
-install(TARGETS PMT_CALIB_LIB LIBRARY DESTINATION lib)
+set_target_properties(PMTCalib PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>"
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>"
+)
+   
+ROOT_GENERATE_DICTIONARY(G__PMTCalib
+    ${HEADERS}
+    LINKDEF ${PROJECT_SOURCE_DIR}/LinkDef.h
+    MODULE PMTCalib
+)
+
+# ------------------------------------------------------------------------------
+# Post-build copy (the only reliable way under Ninja Multi-Config)
+# ROOT always places the dictionary here:
+#   ${CMAKE_CURRENT_BINARY_DIR}/libPMTCalib_rdict.pcm
+#   ${CMAKE_CURRENT_BINARY_DIR}/libPMTCalib.rootmap
+#
+# We mirror them next to the library:
+#   $<TARGET_FILE_DIR:PMTCalib>/
+#
+add_custom_command(TARGET PMTCalib POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_CURRENT_BINARY_DIR}/libPMTCalib_rdict.pcm"
+        "$<TARGET_FILE_DIR:PMTCalib>/libPMTCalib_rdict.pcm"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_CURRENT_BINARY_DIR}/libPMTCalib.rootmap"
+        "$<TARGET_FILE_DIR:PMTCalib>/libPMTCalib.rootmap"
+)
+
+install(TARGETS PMTCalib LIBRARY DESTINATION lib)
+install(FILES
+    "$<TARGET_FILE_DIR:PMTCalib>/libPMTCalib_rdict.pcm"
+    "$<TARGET_FILE_DIR:PMTCalib>/libPMTCalib.rootmap"
+    DESTINATION lib
+)
 
 #----------------------------------------------------------------------------
 # Export include dir variable for downstream use (optional)
