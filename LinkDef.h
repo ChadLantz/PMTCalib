@@ -7,6 +7,7 @@
 #pragma link C++ nestedclasses;
 #pragma link C++ nestedtypedefs;
 
+#pragma link C++ namespace PMTStyle + ;
 #pragma link C++ namespace PMType + ;
 
 #pragma link C++ class Pedestal + ;
