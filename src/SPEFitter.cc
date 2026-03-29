@@ -221,7 +221,7 @@ void SPEFitter::FitwNummethod(TH1 *hspec)
 
    mNum->SetFunction(FCA);
 
-   mNum->SetLimitedVariable(0, "Norm", num.Norm, num.Norm * 0.01, num.Norm * 0.75, num.Norm * 1.25);          // !!!
+   mNum->SetLimitedVariable(0, "Norm", num.Norm, num.Norm * 0.01, num.Norm * 0.75, num.Norm * 1.25); // !!!
    // mNum->SetLimitedVariable( 1, "Q0", num.Q0, TMath::Abs( num.Q0 )*0.01+0.001*num.s0, num.Q0-0.5*num.s0,
    // num.Q0+0.5*num.s0 );
    mNum->SetLimitedVariable(1, "Q0", num.Q0, 0.001 * num.s0, num.Q0 - 0.5 * num.s0, num.Q0 + 0.5 * num.s0);
@@ -300,7 +300,7 @@ void SPEFitter::FitwDFTmethod(TH1 *hspec)
 
    mFFT->SetFunction(FCA);
 
-   mFFT->SetLimitedVariable(0, "Norm", dft.Norm, dft.Norm * 0.01, dft.Norm * 0.75, dft.Norm * 1.25);          // !!!
+   mFFT->SetLimitedVariable(0, "Norm", dft.Norm, dft.Norm * 0.01, dft.Norm * 0.75, dft.Norm * 1.25); // !!!
    // mFFT->SetLimitedVariable( 1, "Q0", dft.Q0, TMath::Abs( dft.Q0 )*0.01+0.001*dft.s0, dft.Q0-0.5*dft.s0,
    // dft.Q0+0.5*dft.s0 );
    mFFT->SetLimitedVariable(1, "Q0", dft.Q0, 0.01 * dft.s0, dft.Q0 - 0.5 * dft.s0, dft.Q0 + 0.5 * dft.s0);
@@ -392,7 +392,7 @@ void SPEFitter::FitwPMTModel(TH1 *hspec)
    mMOD->SetFunction(FCA);
 
    mMOD->SetLimitedVariable(0, "Norm", mod.params[0], mod.params[0] * 0.01, mod.params[0] * 0.75, mod.params[0] * 1.25);
-   mMOD->SetLimitedVariable(1, "Q0", mod.params[1], TMath::Abs(mod.params[1]) * 0.01 + 0.001 * dft.s0,
+   mMOD->SetLimitedVariable(1, "Q0", mod.params[1], TMath::Abs(mod.params[1]) * 0.01 + 0.001 * mod.params[2],
                             mod.params[1] - 0.5 * mod.params[2], mod.params[1] + 0.5 * mod.params[2]);
    mMOD->SetLimitedVariable(2, "s0", mod.params[2], mod.params[2] * 0.01, mod.params[2] * 0.5, mod.params[2] * 1.5);
 
