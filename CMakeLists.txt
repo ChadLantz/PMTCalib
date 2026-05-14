@@ -3,28 +3,26 @@ project(PMTCalib)
 
 #----------------------------------------------------------------------------
 # Find dependencies
-find_package(ROOT REQUIRED)
+find_package(ROOT REQUIRED COMPONENTS MathMore Minuit2)
 set(CMAKE_CXX_STANDARD ${ROOT_CXX_STANDARD})
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(FFTW3 REQUIRED IMPORTED_TARGET fftw3)
 
-file(GLOB SOURCES ${PROJECT_SOURCE_DIR}/src/*.cc)
-file(GLOB HEADERS ${PROJECT_SOURCE_DIR}/src/*.h)
-#remove LinkDef.h from headers list
-list(FILTER HEADERS EXCLUDE REGEX "LinkDef.h$")
+file(GLOB SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cc)
+file(GLOB HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/src/*.h)
 install(FILES ${HEADERS} DESTINATION include)
 
 #----------------------------------------------------------------------------
 # Generate ROOT dictionary for use in PyROOT notebooks.
 add_library(PMTCalib SHARED ${SOURCES} ${G__PMTCalib})
 target_include_directories(PMTCalib PUBLIC
-    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
     $<INSTALL_INTERFACE:include>
     ${ROOT_INCLUDE_DIRS}
     ${FFTW3_INCLUDE_DIRS}
 )
 target_link_libraries(PMTCalib PUBLIC
-    ROOT::Core ROOT::Hist ROOT::MathMore
+    ROOT::Core ROOT::MathMore ROOT::Minuit2
     ${ROOT_COMPONENT_LIBRARIES}
     PkgConfig::FFTW3
 )
@@ -35,7 +33,7 @@ set_target_properties(PMTCalib PROPERTIES
    
 ROOT_GENERATE_DICTIONARY(G__PMTCalib
     ${HEADERS}
-    LINKDEF ${PROJECT_SOURCE_DIR}/LinkDef.h
+    LINKDEF ${CMAKE_CURRENT_SOURCE_DIR}/LinkDef.h
     MODULE PMTCalib
 )
 
