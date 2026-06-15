@@ -464,7 +464,7 @@ void SPEFitter::FitwPMTModel( TH1 *hspec )
   mMOD->SetFunction(FCA);
 
   mMOD->SetLimitedVariable( 0, "Norm", mod.params[0], mod.params[0]*0.01, mod.params[0]*0.75, mod.params[0]*1.25 );
-  mMOD->SetLimitedVariable( 1, "Q0", mod.params[1], TMath::Abs( mod.params[1] )*0.01+0.001*dft.s0, mod.params[1]-0.5*mod.params[2], mod.params[1]+0.5*mod.params[2] );
+  mMOD->SetLimitedVariable( 1, "Q0", mod.params[1], TMath::Abs( mod.params[1] )*0.01+0.001*mod.params[2], mod.params[1]-0.5*mod.params[2], mod.params[1]+0.5*mod.params[2] );
   mMOD->SetLimitedVariable( 2, "s0", mod.params[2], mod.params[2]*0.01, mod.params[2]*0.5, mod.params[2]*1.5 );
   
   mMOD->SetLimitedVariable( 3, "mu", mod.params[3], 0.01, mod.params[3]*0.3, mod.params[3]*3.0 );
