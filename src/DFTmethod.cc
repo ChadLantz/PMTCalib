@@ -112,11 +112,11 @@ void DFTmethod::CalculateValues()
     {
       x[i] = xvalues.at( i );
       y[i] = yvalues.at( i );
-      
     }
 
+  if(gr) delete gr;
   gr = new TGraph( nbins, x, y );
-  
+    
   return;
   
 }
