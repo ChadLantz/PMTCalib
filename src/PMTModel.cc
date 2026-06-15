@@ -1,6 +1,6 @@
 
 #include "PMTModel.h"
-#include <gsl_sf_hyperg.h>
+#include "Math/SpecFuncMathMore.h"
 
 Int_t nlim = 10;
 Int_t nlim2 = 10;
@@ -326,15 +326,15 @@ Double_t PMTModel::F3( Double_t xx )
 	    }
 	  else if ( omega<hi_limit && omega>=0.0  )
 	    {
-	      Double_t t1 = TMath::Gamma( A1m )*gsl_sf_hyperg_1F1( 1.0/2.0-A1m, 1.0/2.0, -omega2 );
-	      Double_t t2 = 2.0*omega*TMath::Gamma( A2m )*gsl_sf_hyperg_1F1( 3.0/2.0-A2m, 3.0/2.0, -omega2 );
+	      Double_t t1 = TMath::Gamma( A1m )*ROOT::Math::conf_hyperg( 1.0/2.0-A1m, 1.0/2.0, -omega2 );
+	      Double_t t2 = 2.0*omega*TMath::Gamma( A2m )*ROOT::Math::conf_hyperg( 3.0/2.0-A2m, 3.0/2.0, -omega2 );
 	      Imn = 1.0/2.0/sqrt( TMath::Pi() )*( t1+t2 )*TMath::Exp( omega2-psi2 );
 	      
 	    }
 	  else if ( omega<0.0 )
 	    {
 	      Double_t t3 = 1.0/( 2.0*TMath::Pi() )*TMath::Gamma( A1m )*TMath::Gamma( A2m );
-	      Imn = t3*gsl_sf_hyperg_U( A1m, 1.0/2.0, omega2 )*TMath::Exp( -psi2 );
+	      Imn = t3*ROOT::Math::conf_hypergU( A1m, 1.0/2.0, omega2 )*TMath::Exp( -psi2 );
 	      
 	    }
 	  
@@ -637,15 +637,15 @@ TGraph* PMTModel::GetGraphN( Int_t n )
 		}
 	      else if ( omega<hi_limit && omega>=0.0  )
 		{
-		  Double_t t1 = TMath::Gamma( A1m )*gsl_sf_hyperg_1F1( 1.0/2.0-A1m, 1.0/2.0, -omega2 );
-		  Double_t t2 = 2.0*omega*TMath::Gamma( A2m )*gsl_sf_hyperg_1F1( 3.0/2.0-A2m, 3.0/2.0, -omega2 );
+		  Double_t t1 = TMath::Gamma( A1m )*ROOT::Math::conf_hyperg( 1.0/2.0-A1m, 1.0/2.0, -omega2 );
+		  Double_t t2 = 2.0*omega*TMath::Gamma( A2m )*ROOT::Math::conf_hyperg( 3.0/2.0-A2m, 3.0/2.0, -omega2 );
 		  Imn = 1.0/2.0/sqrt( TMath::Pi() )*( t1+t2 )*TMath::Exp( omega2-psi2 );
 		  
 		}
 	      else if ( omega<0.0 )
 		{
 		  Double_t t3 = TMath::Gamma( A1m )*TMath::Gamma( A2m )/( 2.0*TMath::Pi() );
-		  Imn = t3*gsl_sf_hyperg_U( A1m, 1.0/2.0, omega2 )*TMath::Exp( -psi2 );
+		  Imn = t3*ROOT::Math::conf_hypergU( A1m, 1.0/2.0, omega2 )*TMath::Exp( -psi2 );
 		  
 		}
 	  
