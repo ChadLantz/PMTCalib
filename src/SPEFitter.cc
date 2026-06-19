@@ -1,5 +1,8 @@
 
 #include "SPEFitter.h"
+#include <Math/Minimizer.h>
+#include <RtypesCore.h>
+#include "Fit/ParameterSettings.h"
 
 using namespace std;
 
@@ -463,21 +466,45 @@ void SPEFitter::FitwPMTModel( TH1 *hspec )
   
   mMOD->SetFunction(FCA);
 
-  mMOD->SetLimitedVariable( 0, "Norm", mod.params[0], mod.params[0]*0.01, mod.params[0]*0.75, mod.params[0]*1.25 );
-  mMOD->SetLimitedVariable( 1, "Q0", mod.params[1], TMath::Abs( mod.params[1] )*0.01+0.001*mod.params[2], mod.params[1]-0.5*mod.params[2], mod.params[1]+0.5*mod.params[2] );
-  mMOD->SetLimitedVariable( 2, "s0", mod.params[2], mod.params[2]*0.01, mod.params[2]*0.5, mod.params[2]*1.5 );
+  const char *varNames[] = {"Norm", "Q0", "s0", "mu", "Q", "s1", "alpha", "w"};
+
+  Double_t varStepSize[]{ mod.params[0] * 0.01,
+                          TMath::Abs( mod.params[1] ) * 0.01 + 0.001 * mod.params[2],
+                          mod.params[2] * 0.01, mod.params[2] * 0.5,
+                          0.01,
+                          mod.params[4] * 0.001,
+                          mod.params[5] * 0.01,
+                          mod.params[6] * 0.01,
+                          0.01
+                        };
+
+  Double_t varMin[] = { mod.params[0] * 0.75, 
+                        mod.params[1] - 0.5 * mod.params[2],
+                        mod.params[2] * 0.5,
+                        mod.params[3] * 0.3,
+                        mod.params[4] * 0.3,
+                        mod.params[5] * 0.1,
+                        mod.params[6] * 0.01,
+                        0.0
+                      };
   
-  mMOD->SetLimitedVariable( 3, "mu", mod.params[3], 0.01, mod.params[3]*0.3, mod.params[3]*3.0 );
-  
-  mMOD->SetLimitedVariable( 4, "PAR1", mod.params[4], mod.params[4]*0.001, mod.params[4]*0.3, mod.params[4]*3.0 );
-  mMOD->SetLimitedVariable( 5, "PAR2", mod.params[5], mod.params[5]*0.01, mod.params[5]*0.1, mod.params[5]*10.0 );
-  mMOD->SetLimitedVariable( 6, "PAR3", mod.params[6], mod.params[6]*0.01, mod.params[6]*0.01, mod.params[6]*3.0 );
-  mMOD->SetLimitedVariable( 7, "PAR4", mod.params[7], 0.01, 0.0, 0.65 );
-  
-  
+  Double_t varMax[] = { mod.params[0] * 1.25,
+                        mod.params[1] + 0.5 * mod.params[2],
+                        mod.params[2] * 1.5,
+                        mod.params[3] * 3.0,
+                        mod.params[4] * 3.0,
+                        mod.params[5] * 10.0,
+                        mod.params[6] * 3.0,
+                        0.65
+                        };
+
+  for(UInt_t var = 0; var < 8; ++var){
+    mMOD->SetLimitedVariable(var, varNames[var], mod.params[var], varStepSize[var], varMin[var], varMax[var]);
+  }
+
   mMOD->SetMaxFunctionCalls(1.E9);
   mMOD->SetMaxIterations(1.E9);
-  mMOD->SetTolerance(0.01);
+  mMOD->SetTolerance(0.001);
   mMOD->SetStrategy(2);
   mMOD->SetErrorDef(1.0);
   mMOD->Minimize();
@@ -487,57 +514,37 @@ void SPEFitter::FitwPMTModel( TH1 *hspec )
   Int_t ifits = 0;
   while( mMOD->Status()!=0 && ifits<4 )
     { 
+      for(UInt_t i = 0; i < 8; ++i){
+        ROOT::Fit::ParameterSettings par;
+        mMOD->GetVariableSettings(i, par);
+        Double_t lb = par.LowerLimit();
+        Double_t ub = par.UpperLimit();
+        Double_t val = par.Value();
+        if(val < lb || val > ub){
+          Double_t midVal = 0.5 * (lb + ub);
+          Error("FitwPMTModel", "Variable %s = %.2e is outside its bounds: [%.2e, %.2e]. Setting value to %.2e", par.Name().c_str(), val, lb, ub, midVal);
+          mMOD->SetLimitedVariable(i, par.Name(), midVal, varStepSize[i], varMin[i], varMax[i]);
+        }
+      }
+
       mMOD->Minimize();
       mMOD->Hesse();
       ifits++;
       
     }
-  
-  if( mMOD->Status()!=0 )
-    {
-      cout << " * " << endl;
-      cout << " * The fit has failed ! " << endl;
-      cout << " * " << endl;
-      
-      return;
 
-    }
+    Int_t ndim = mMOD->NDim();
+    const double *pars = mMOD->X();  
+    const double *erpars = mMOD->Errors();
   
   fit_status = mMOD->Status();
+  mMOD->PrintResults();
   
-  cout << " * " << endl;
-  cout << " * Minimization results "  << endl;
-  cout << " * " << endl;
-  
-  cout << " * " << setw(10)  << "Calls" << " : " << mMOD->NCalls() << endl;
-  cout << " * " << setw(10)  << "Status" << " : " << fit_status << endl;
-  cout << " * " << endl;
-  
-  Int_t ndim = mMOD->NDim();
-  const double *pars = mMOD->X();  
-  const double *erpars = mMOD->Errors();
-    
-  for ( int i=0; i<ndim; i++ )
-    {
-      cout << " * " << setw(10)  << mMOD->VariableName(i) << " : " << Form( "%.5f", pars[i] ) << " +/- " << Form( "%.5f", erpars[i] ) << endl; 
-      cout << " * " << endl;
-
-      vals[i]=pars[i];
-      errs[i]=erpars[i];
-            
-    }
-
   ndof = Nb-mod.nparams;
-  cout << " * " << setw(10) << "NDOF" << " : " << ndof << endl;
-
   chi2r = mMOD->MinValue()/( ndof ); 
-  cout << " * " << setw(10) << "chi2/NDOF" << " : " << Form( "%.2f", chi2r ) << endl;
-  cout << " * " << endl;
     
   Double_t p[8] = { vals[0], vals[1], vals[2], vals[3], vals[4], vals[5], vals[6], vals[7] };
   mod.SetParams( p );
-  
-  cout << "" << endl;
   
   return;
   
