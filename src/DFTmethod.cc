@@ -6,13 +6,13 @@ using namespace std;
 
 ClassImp( DFTmethod )
 
-DFTmethod::DFTmethod()
+DFTmethod::DFTmethod(): gr(nullptr)
 {}
 
 DFTmethod::~DFTmethod()
 {}
 
-DFTmethod::DFTmethod( Int_t _nbins, Double_t _xmin, Double_t _xmax, SPEResponse _spef )
+DFTmethod::DFTmethod( Int_t _nbins, Double_t _xmin, Double_t _xmax, SPEResponse _spef ) : gr(nullptr)
 {
   nbins = _nbins;
 
@@ -114,8 +114,13 @@ void DFTmethod::CalculateValues()
       y[i] = yvalues.at( i );
     }
 
-  if(gr) delete gr;
-  gr = new TGraph( nbins, x, y );
+  if (gr) {
+      gr->Clear();
+      for (Int_t i = 0; i < nbins; i++)
+         gr->SetPoint(i, x[i], y[i]);
+   } else {
+      gr = new TGraph(nbins, x, y);
+   }
     
   return;
   
