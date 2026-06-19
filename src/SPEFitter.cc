@@ -133,7 +133,7 @@ Double_t m_g( Double_t *x, Double_t *par )
         
   Double_t arg = 0.0; 
   if ( s_0!=0.0 ) arg = ( xx - Q_0 )/s_0;    
-  else cout << "Error: The code tries to divide by zero." << endl;
+  else Error("m_g", "Division by zero: sigma0");
   
   Double_t result = 1.0/( sqrt( 2 * TMath::Pi() ) * s_0 ) * TMath::Exp( -0.5*arg*arg );
   result *= ( Norm*wbin0 );

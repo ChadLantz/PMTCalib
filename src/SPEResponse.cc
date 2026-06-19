@@ -21,7 +21,7 @@ Double_t _gausexpfunc( Double_t *x, Double_t *par )
     {
       Double_t arg = 0.0; 
       if ( s!=0.0 ) arg = ( xx - Q )/s;    
-      else cout << "Error: The code tries to divide by zero." << endl;
+      else Error("_gausexpfunc", "Division by zero: sigma");
 
       Double_t gn = 0.5*TMath::Erfc( -Q/( sqrt(2.0)*s ) );
       
@@ -50,7 +50,7 @@ Double_t _gaus2expfunc( Double_t *x, Double_t *par )
     {
       Double_t arg = 0.0; 
       if ( s!=0.0 ) arg = ( xx - Q )/s;    
-      else cout << "Error: The code tries to divide by zero." << endl;
+      else Error("_gaus2expfunc", "Division by zero: sigma");
 
       Double_t gn = 0.5*TMath::Erfc( -Q/( sqrt(2.0)*s ) );
       
@@ -152,7 +152,7 @@ Double_t _lognormalexpfunc( Double_t *x, Double_t *par )
     {
       Double_t arg = 0.0; 
       if ( s!=0.0 ) arg = ( TMath::Log( xx ) - Q )/s;    
-      else cout << "Error: The code tries to divide by zero." << endl;
+      else Error("_lognormalexpfunc", "Division by zero: sigma");
             
       result = w*alpha*TMath::Exp( -xx*alpha ) + ( 1.0-w )/( sqrt( 2.0*TMath::Pi() )*s*xx )*TMath::Exp( -0.5*arg*arg );
 
@@ -178,7 +178,7 @@ Double_t _testfunc( Double_t *x, Double_t *par )
     {
       Double_t arg = 0.0; 
       if ( s!=0.0 ) arg = ( xx - Q )/s;    
-      else cout << "Error: The code tries to divide by zero." << endl;
+      else Error("_testfunc", "Division by zero: sigma");
 
       Double_t gn = 0.5*TMath::Erfc( -Q/( sqrt(2.0)*s ) );
 

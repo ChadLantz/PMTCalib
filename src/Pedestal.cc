@@ -16,8 +16,7 @@ Double_t _pedfunc( Double_t *x, Double_t *par )
         
   Double_t arg = 0.0; 
   if ( s_0!=0.0 ) arg = ( xx - Q_0 )/s_0;    
-  else cout << "Error: The code tries to divide by zero." << endl;
-  
+  else Error("_pedfunc", "Division by zero: sigma0");
   Double_t result = 1.0/( sqrt( 2.0*TMath::Pi() ) * s_0 ) * TMath::Exp( -0.5*arg*arg );
     
   return result;
@@ -35,8 +34,7 @@ Double_t _pedfit( Double_t *x, Double_t *par )
         
   Double_t arg = 0.0; 
   if ( s_0!=0.0 ) arg = ( xx - Q_0 )/s_0;    
-  //else cout << "Error: The code tries to divide by zero." << endl;
-  
+  else Error("_pedfit", "Division by zero: sigma0");
   Double_t result = wpin0*N/( sqrt( 2.0*TMath::Pi() )*s_0 ) * TMath::Exp( -0.5*arg*arg );
     
   return result;

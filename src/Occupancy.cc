@@ -25,7 +25,7 @@ Double_t Occupancy::Gauss1( Float_t x )
     
   Double_t arg = 0.0; 
   if ( s0!=0.0 ) arg = ( x - Q0 )/s0;    
-  else cout << "Error: The code tries to divide by zero." << endl;
+  else Error("Gauss1", "Division by zero: sigma0");
   result = 1.0/( sqrt( 2.0*TMath::Pi() )*s0 )*TMath::Exp( -0.5*arg*arg );
 
   return result;

@@ -134,14 +134,14 @@ Double_t PMTModel::F1( Double_t xx )
     
   Double_t arg0 = 0.0; 
   if ( s0!=0.0 ) arg0 = ( xx - Q0 )/s0;    
-  else cout << "Error: The code tries to divide by zero ! " << endl;
+  else Error("F1", "Division by zero: sigma0");
   result += TMath::Poisson( 0.0, mu )/( sqrt( 2.0*TMath::Pi() )*s0 )*TMath::Exp( -0.5*arg0*arg0 );
 
   Double_t Q1 = Q0 + Q;
   Double_t s1 = sqrt( pow( s0, 2.0 ) + pow( s, 2.0 ) );
   Double_t arg1 = 0.0; 
-  if ( s1!=0.0 ) arg1 = ( xx - Q1 )/s1;    
-  else cout << "Error: The code tries to divide by zero ! " << endl;
+  if ( s1!=0.0 ) arg1 = ( xx - Q1 )/s1;
+  // else Error("F1", "Division by zero: sigma1 sigma0 = %.2e, sigma = %.2e", s0, s);
   
   Double_t omega = ( Q0+alpha*pow( s0, 2.0 )-xx )/sqrt(2.0)/s0;
   Double_t SR1 = w*alpha/2.0*TMath::Exp( -alpha*( xx-Q0 )+pow( alpha*s0, 2.0 )/2.0 )*TMath::Erfc( omega );
@@ -160,7 +160,7 @@ Double_t PMTModel::F1( Double_t xx )
                   
       Double_t argn = 0.0; 
       if ( sn!=0.0 ) argn = ( xx-Qn )/sn;    
-      else cout << "Error: The code tries to divide by zero ! " << endl;
+      else Error("F1", "Division by zero: sigmaN");
       result += TMath::Poisson( 1.0*n, mu )/( sqrt( 2.0*TMath::Pi() )*sn ) * TMath::Exp( -0.5*argn*argn );
                   
     }
@@ -190,14 +190,14 @@ Double_t PMTModel::F2( Double_t xx )
     
   Double_t arg0 = 0.0; 
   if ( s0!=0.0 ) arg0 = ( xx - Q0 )/s0;    
-  else cout << "Error: The code tries to divide by zero ! " << endl;
+  else Error("F2", "Division by zero: sigma0");
   result += TMath::Poisson( 0.0, mu )/( sqrt( 2.0*TMath::Pi() )*s0 )*TMath::Exp( -0.5*arg0*arg0 );
 
   Double_t Q1 = Q0 + Q;
   Double_t s1 = sqrt( pow( s0, 2.0 ) + pow( s, 2.0 ) );
   Double_t arg1 = 0.0; 
   if ( s1!=0.0 ) arg1 = ( xx - Q1 )/s1;    
-  else cout << "Error: The code tries to divide by zero ! " << endl;
+  else Error("F2", "Division by zero: sigma1");
 
   Double_t omega = ( Q0+alpha*pow( s0, 2.0 )-xx )/sqrt(2.0)/s0;
   Double_t SR1 = w*alpha/2.0*TMath::Exp( -alpha*( xx-Q0 )+pow( alpha*s0, 2.0 )/2.0 )*TMath::Erfc( omega );
@@ -224,7 +224,7 @@ Double_t PMTModel::F2( Double_t xx )
                   
       Double_t argn = 0.0; 
       if ( sn!=0.0 ) argn = ( xx-Qn )/sn;    
-      else cout << "Error: The code tries to divide by zero ! " << endl;
+      else Error("F2", "Division by zero: sigmaN");
       result += TMath::Poisson( 1.0*n, mu )/( sqrt( 2.0*TMath::Pi() )*sn ) * TMath::Exp( -0.5*argn*argn );
       
     }
@@ -256,7 +256,7 @@ Double_t PMTModel::F3( Double_t xx )
 
   Double_t arg = 0.0; 
   if ( s0!=0.0 ) arg = ( xx - Q0 )/s0;    
-  else cout << "Error: The code tries to divide by zero." << endl;
+  else Error("F3", "Division by zero: sigma0");
     
   Double_t SR0 = 1.0/( sqrt( 2.0*TMath::Pi() )*s0 )*TMath::Exp( -0.5*arg*arg );
   SR0 *= TMath::Poisson( 0, mu );
@@ -272,7 +272,7 @@ Double_t PMTModel::F3( Double_t xx )
   
   Double_t arg1 = 0.0; 
   if ( s1!=0.0 ) arg1 = ( xx - Q1 )/s1;    
-  else cout << "Error: The code tries to divide by zero." << endl;
+  else Error("F3", "Division by zero: sigma1");
   
   Double_t gn = 0.5*TMath::Erfc( -Q/( sqrt(2.0)*s ) );
   Double_t A = ( Q0-xx )*pow( s, 2.0 ) - Q*pow( s0, 2.0 ); 
@@ -296,7 +296,7 @@ Double_t PMTModel::F3( Double_t xx )
       
       Double_t argn = 0.0; 
       if ( sn!=0.0 ) argn = ( xx - Qn )/sn;    
-      else cout << "Error: The code tries to divide by zero." << endl;
+      else Error("F3", "Division by zero: sigmaN");
       Double_t gnB = 1.0/( sqrt( 2.0*TMath::Pi() )*sn )*TMath::Exp( -0.5*argn*argn );
       SRn += pow( 1.0-w, n )*gnB;
       
@@ -361,7 +361,7 @@ Double_t PMTModel::F3( Double_t xx )
       
       Double_t argn = 0.0; 
       if ( sn!=0.0 ) argn = ( xx - Qn )/sn;    
-      else cout << "Error: The code tries to divide by zero." << endl;
+      else Error("F3", "Division by zero: sigmaN");
       Double_t SRn = 1.0/( sqrt( 2.0*TMath::Pi() )*sn )*TMath::Exp( -0.5*argn*argn );
 
       SRn *= TMath::Poisson( n, mu );
@@ -400,7 +400,7 @@ Double_t PMTModel::F4( Double_t xx )
 
   Double_t arg = 0.0; 
   if ( s0!=0.0 ) arg = ( xx - Q0 )/s0;    
-  else cout << "Error: The code tries to divide by zero." << endl;
+  else Error("F4", "Division by zero: sigma0");
     
   Double_t SR0 = 1.0/( sqrt( 2.0*TMath::Pi() )*s0 )*TMath::Exp( -0.5*arg*arg );
   SR0 *= TMath::Poisson( 0, mu );
@@ -416,7 +416,7 @@ Double_t PMTModel::F4( Double_t xx )
   
   Double_t arg1 = 0.0; 
   if ( s1!=0.0 ) arg1 = ( xx - Q1 )/s1;    
-  else cout << "Error: The code tries to divide by zero." << endl;
+  else Error("F4", "Division by zero: sigma1");
   
   Double_t gn = 0.5*TMath::Erfc( -Q/( sqrt(2.0)*s ) );
   Double_t A = ( Q0-xx )*pow( s, 2.0 ) - Q*pow( s0, 2.0 ); 
@@ -440,7 +440,7 @@ Double_t PMTModel::F4( Double_t xx )
       
       Double_t argn = 0.0; 
       if ( sn!=0.0 ) argn = ( xx - Qn )/sn;    
-      else cout << "Error: The code tries to divide by zero." << endl;
+      else Error("F4", "Division by zero: sigmaN");
       Double_t gnB = 1.0/( sqrt( 2.0*TMath::Pi() )*sn )*TMath::Exp( -0.5*argn*argn );
       SRn += pow( 1.0-w, n )*gnB;
       
@@ -485,7 +485,7 @@ Double_t PMTModel::F4( Double_t xx )
       
       Double_t argn = 0.0; 
       if ( sn!=0.0 ) argn = ( xx - Qn )/sn;    
-      else cout << "Error: The code tries to divide by zero." << endl;
+      else Error("F4", "Division by zero: sigmaN");
       Double_t SRn = 1.0/( sqrt( 2.0*TMath::Pi() )*sn )*TMath::Exp( -0.5*argn*argn );
       
       SRn *= TMath::Poisson( n, mu );
@@ -560,7 +560,7 @@ TGraph* PMTModel::GetGraphN( Int_t n )
 	{
 	  Double_t arg = 0.0; 
 	  if ( s0!=0.0 ) arg = ( x[i] - Q0 )/s0;    
-	  else cout << "Error: The code tries to divide by zero." << endl;
+	  else Error("GetGraphN", "Division by zero: sigma0");
 	  
 	  Double_t SR0 = 1.0/( sqrt( 2.0*TMath::Pi() )*s0 )*TMath::Exp( -0.5*arg*arg );
 	  SR0 *= TMath::Poisson( 0, mu );
@@ -580,7 +580,7 @@ TGraph* PMTModel::GetGraphN( Int_t n )
 	  
 	  Double_t arg1 = 0.0; 
 	  if ( s1!=0.0 ) arg1 = ( x[i] - Q1 )/s1;    
-	  else cout << "Error: The code tries to divide by zero." << endl;
+	  else Error("GetGraphN", "Division by zero: sigmaN");
 	  
 	  Double_t gn = 0.5*TMath::Erfc( -Q/( sqrt(2.0)*s ) );
 	  Double_t A = ( Q0-x[i] )*pow( s, 2.0 ) - Q*pow( s0, 2.0 ); 
@@ -606,7 +606,7 @@ TGraph* PMTModel::GetGraphN( Int_t n )
 	  
 	  Double_t argn = 0.0; 
 	  if ( sn!=0.0 ) argn = ( x[i] - Qn )/sn;    
-	  else cout << "Error: The code tries to divide by zero." << endl;
+	  else Error("GetGraphN", "Division by zero: sigmaN");
 	  Double_t gnB = 1.0/( sqrt( 2.0*TMath::Pi() )*sn )*TMath::Exp( -0.5*argn*argn );
 	  SRn += pow( 1.0-w, n )*gnB;
 	  
@@ -678,7 +678,7 @@ TGraph* PMTModel::GetGraphN( Int_t n )
 	  
 	  Double_t argn = 0.0; 
 	  if ( sn!=0.0 ) argn = ( x[i] - Qn )/sn;    
-	  else cout << "Error: The code tries to divide by zero." << endl;
+	  else Error("GetGraphN", "Division by zero: sigmaN");
 	  Double_t SRn = 1.0/( sqrt( 2.0*TMath::Pi() )*sn )*TMath::Exp( -0.5*argn*argn );
 	  
 	  SRn *= TMath::Poisson( n, mu );
@@ -732,7 +732,7 @@ TGraph* PMTModel::GetGraphN2( Int_t n )
 	{
 	  Double_t arg = 0.0; 
 	  if ( s0!=0.0 ) arg = ( x[i] - Q0 )/s0;    
-	  else cout << "Error: The code tries to divide by zero." << endl;
+	  else Error("GetGraphN2", "Division by zero: sigma0");
 	  
 	  Double_t SR0 = 1.0/( sqrt( 2.0*TMath::Pi() )*s0 )*TMath::Exp( -0.5*arg*arg );
 	  SR0 *= TMath::Poisson( 0, mu );
@@ -752,7 +752,7 @@ TGraph* PMTModel::GetGraphN2( Int_t n )
 	  
 	  Double_t arg1 = 0.0; 
 	  if ( s1!=0.0 ) arg1 = ( x[i] - Q1 )/s1;    
-	  else cout << "Error: The code tries to divide by zero." << endl;
+	  else Error("F3", "Division by zero: ");
 	  
 	  Double_t gn = 0.5*TMath::Erfc( -Q/( sqrt(2.0)*s ) );
 	  Double_t A = ( Q0-x[i] )*pow( s, 2.0 ) - Q*pow( s0, 2.0 ); 
@@ -778,7 +778,7 @@ TGraph* PMTModel::GetGraphN2( Int_t n )
 	  
 	  Double_t argn = 0.0; 
 	  if ( sn!=0.0 ) argn = ( x[i] - Qn )/sn;    
-	  else cout << "Error: The code tries to divide by zero." << endl;
+	  else Error("GetGraphN2", "Division by zero: sigmaN");
 	  Double_t gnB = 1.0/( sqrt( 2.0*TMath::Pi() )*sn )*TMath::Exp( -0.5*argn*argn );
 	  SRn += pow( 1.0-w, n )*gnB;
 	  
@@ -829,7 +829,7 @@ TGraph* PMTModel::GetGraphN2( Int_t n )
 	  
 	  Double_t argn = 0.0; 
 	  if ( sn!=0.0 ) argn = ( x[i] - Qn )/sn;    
-	  else cout << "Error: The code tries to divide by zero." << endl;
+	  else Error("GetGraphN2", "Division by zero: sigmaN");
 	  Double_t SRn = 1.0/( sqrt( 2.0*TMath::Pi() )*sn )*TMath::Exp( -0.5*argn*argn );
 	  
 	  SRn *= TMath::Poisson( n, mu );

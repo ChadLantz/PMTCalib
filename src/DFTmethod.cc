@@ -1,5 +1,6 @@
 
 #include "DFTmethod.h"
+#include "TError.h"
 
 using namespace std;
 
@@ -56,7 +57,7 @@ void DFTmethod::CalculateValues()
       
       Double_t arg = 0.0; 
       if ( s0!=0.0 ) arg = ( xx - Q0 + edge )/s0;    
-      else cout << "Error: The code tries to divide by zero." << endl;
+      else  Error("CalculateValues", "Division by zero: sigma0");
       Double_t yy = 1.0/( sqrt( 2.0 * TMath::Pi() ) * s0 ) * TMath::Exp( -0.5*arg*arg );
       wfinBG[i] = yy;
       
@@ -180,7 +181,7 @@ TGraph* DFTmethod::GetGraphN( Int_t n )
       
       Double_t arg = 0.0; 
       if ( s0!=0.0 ) arg = ( xx - Q0 + edge )/s0;    
-      else cout << "Error: The code tries to divide by zero." << endl;
+      else Error("GetGraphN", "Division by zero: sigma0");
       Double_t yy = 1.0/( sqrt( 2.0 * TMath::Pi() ) * s0 ) * TMath::Exp( -0.5*arg*arg );
       wfinBG[i] = yy;
       
