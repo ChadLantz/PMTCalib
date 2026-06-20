@@ -4,49 +4,37 @@
 #include "RtypesCore.h"
 #include "Fit/ParameterSettings.h"
 
+#include "Math/Minimizer.h"
+#include "Math/Functor.h"
+
 // Why on earth are there globals here?
 Int_t N;
-double xx0[7500];
-double yy0[7500];
-
-double wbin0;
-
+Double_t xx0[7500];
+Double_t yy0[7500];
+Double_t wbin0;
 NumIntegration num0;
 DFTmethod dft0;
 PMTModel mod0;
-
 Int_t Nb;
 
-double fit_func_num(const double *x)
+Double_t fit_func_num(const Double_t *x)
 {
-   double result = 0.0;
-
+   Double_t result = 0.0;
    num0.wbin = wbin0;
+   Double_t Norm = num0.Norm = x[0];
+   Double_t Q0 = num0.Q0 =x[1];
+   Double_t s0 = num0.s0 = x[2];
+   Double_t mu = num0.mu = x[3];
 
-   double Norm = x[0];
-   num0.Norm = Norm;
-
-   double Q0 = x[1];
-   num0.Q0 = Q0;
-   double s0 = x[2];
-   num0.s0 = s0;
-
-   double mu = x[3];
-   num0.mu = mu;
-
-   double params0[20];
+   Double_t params0[20];
    for (Int_t i = 0; i < num0.spef.nparams; i++)
       params0[i] = x[i + 4];
    num0.spef.SetParams(params0);
-
    num0.CalculateValues();
 
    for (Int_t i = 0; i < N; i++) {
       if (yy0[i] > 0) {
-         Double_t val = num0.GetValue(xx0[i]);
-         if (val < 1.0e-5)
-            val = 1.0e-5;
-
+         Double_t val = std::max(num0.GetValue(xx0[i]), 1.0e-5);
          result += pow(val - yy0[i], 2.0) / (yy0[i]);
       }
    }
@@ -54,24 +42,17 @@ double fit_func_num(const double *x)
    return result;
 }
 
-double fit_func_fft(const double *x)
+Double_t fit_func_fft(const Double_t *x)
 {
-   double result = 0.0;
+   Double_t result = 0.0;
 
    dft0.wbin = wbin0;
+   Double_t Norm = dft0.Norm = x[0];
+   Double_t Q0 = dft0.Q0 = x[1];
+   Double_t s0 = dft0.s0 = x[2];
+   Double_t mu = dft0.mu = x[3];
 
-   double Norm = x[0];
-   dft0.Norm = Norm;
-
-   double Q0 = x[1];
-   dft0.Q0 = Q0;
-   double s0 = x[2];
-   dft0.s0 = s0;
-
-   double mu = x[3];
-   dft0.mu = mu;
-
-   double params0[20];
+   Double_t params0[20];
    for (Int_t i = 0; i < dft0.spef.nparams; i++)
       params0[i] = x[i + 4];
    dft0.spef.SetParams(params0);
@@ -91,13 +72,13 @@ double fit_func_fft(const double *x)
    return result;
 }
 
-double fit_func_mod(const double *x)
+Double_t fit_func_mod(const Double_t *x)
 {
-   double result = 0.0;
+   Double_t result = 0.0;
 
    mod0.wbin = wbin0;
 
-   double params0[20];
+   Double_t params0[20];
    for (Int_t i = 0; i < mod0.nparams; i++)
       params0[i] = x[i];
    mod0.SetParams(params0);
@@ -120,7 +101,6 @@ Double_t m_g(Double_t *x, Double_t *par)
    Double_t xx = x[0];
 
    Double_t Norm = par[0];
-
    Double_t Q_0 = par[1];
    Double_t s_0 = par[2];
 
@@ -329,8 +309,8 @@ void SPEFitter::FitwDFTmethod(TH1 *hspec)
    fit_status = mFFT->Status();
 
    Int_t ndim = mFFT->NDim();
-   const double *pars = mFFT->X();
-   const double *erpars = mFFT->Errors();
+   const Double_t *pars = mFFT->X();
+   const Double_t *erpars = mFFT->Errors();
 
    for (int i = 0; i < ndim; i++) {
       vals[i] = pars[i];
