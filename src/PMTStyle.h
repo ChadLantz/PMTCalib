@@ -9,10 +9,9 @@
 #include "TAxis.h"
 #include "TLegend.h"
 
-namespace PMTStyle
-{
-  extern void SetDefaultStyle();
-    
+namespace PMTStyle {
+extern void SetDefaultStyle();
+
 }
 
 #endif

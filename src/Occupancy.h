@@ -2,36 +2,25 @@
 #ifndef OCCUPANCY_H
 #define OCCUPANCY_H
 
-#include "iostream"
-#include "iomanip"
-//#include "math.h"
-
 #include "TObject.h"
-#include "TMath.h"
+#include "TH1.h"
 
-#include "TH1D.h"
-#include "TGraph.h"
+class Occupancy : public TObject {
+private:
+   Double_t Q0;
+   Double_t s0;
 
-class Occupancy : public TObject
-{
- private:
-  
-  Double_t Q0;
-  Double_t s0;
+public:
+   Occupancy();
+   Occupancy(Double_t _Q0, Double_t _s0);
+   virtual ~Occupancy();
 
- public:
-  
-  Occupancy();
-  virtual ~Occupancy();
-  Occupancy( Double_t _Q0, Double_t _s0 );
+   Double_t Gauss1(Float_t x);
+   Float_t FindG(TH1D *_h, Float_t f);
 
-  Double_t Gauss1( Float_t x );
-  Float_t FindG( TH1D* _h, Float_t f );
+   Float_t mu_bf;
 
-  Float_t mu_bf;
-  
-  ClassDef( Occupancy, 1 )
-  
+   ClassDef(Occupancy, 1)
 };
 
 #endif

@@ -1,21 +1,13 @@
-
 #ifndef NUMINTEGRATION_H
 #define NUMINTEGRATION_H
 
-#include "iostream"
-#include "iomanip"
 #include <math.h>
 
 #include "TObject.h"
-#include "TMath.h"
-#include "TF1.h"
-#include "TH1D.h"
 #include "TGraph.h"
-#include "TColor.h"
 
 #include "SPEResponse.h"
 
-#include "fftw3.h"
 
 
 class NumIntegration : public TObject

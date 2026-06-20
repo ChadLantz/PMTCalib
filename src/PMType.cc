@@ -1,6 +1,5 @@
 
 #include "PMType.h"
 
-namespace PMType
-{}
-
+namespace PMType {
+}

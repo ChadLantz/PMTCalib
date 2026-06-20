@@ -14,62 +14,56 @@
 
 #include "TMinuit.h"
 #include "Minuit2/Minuit2Minimizer.h"
-#include "Minuit2/FunctionMinimum.h" 
-#include "Minuit2/MnMigrad.h" 
-#include "Minuit2/MnUserParameters.h" 
-#include "Minuit2/MnPrint.h" 
-#include "Minuit2/FCNBase.h" 
+#include "Minuit2/FunctionMinimum.h"
+#include "Minuit2/MnMigrad.h"
+#include "Minuit2/MnUserParameters.h"
+#include "Minuit2/MnPrint.h"
+#include "Minuit2/FCNBase.h"
 #include "Math/Minimizer.h"
 #include "Math/Factory.h"
 #include "Math/Functor.h"
 
+class SPEFitter : public TObject {
+private:
+   NumIntegration num;
 
-class SPEFitter : public TObject
-{
- private:
+   DFTmethod dft;
+   // ROOT::Minuit2::Minuit2Minimizer *mFFT;
 
-  NumIntegration num;
-  
-  DFTmethod dft;
-  //ROOT::Minuit2::Minuit2Minimizer *mFFT;
-    
-  PMTModel mod;
-  ROOT::Minuit2::Minuit2Minimizer *mMOD;
-  
-  TF1 *ped_func;
-  
- public:
-  
-  SPEFitter();
-  
-  virtual ~SPEFitter();
+   PMTModel mod;
+   ROOT::Minuit2::Minuit2Minimizer *mMOD;
 
-  ROOT::Minuit2::Minuit2Minimizer *mNum;
-  ROOT::Minuit2::Minuit2Minimizer *mFFT;
+   TF1 *ped_func;
 
-  
-  Int_t fit_status;
-  
-  Double_t vals[20];
-  Double_t errs[20];
+public:
+   SPEFitter();
 
-  Double_t ndof;
-  Double_t chi2r;
+   virtual ~SPEFitter();
 
-  Double_t FindMu( TH1D *hspec, Double_t _Q0, Double_t _s0 );
-  Double_t FindG( TH1 *hspec, Double_t _Q0, Double_t _mu );
+   ROOT::Minuit2::Minuit2Minimizer *mNum;
+   ROOT::Minuit2::Minuit2Minimizer *mFFT;
 
-  void SetNummethod( NumIntegration _num );
-  void FitwNummethod( TH1 *hspec );
-  
-  void SetDFTmethod( DFTmethod _dft );
-  void FitwDFTmethod( TH1 *hspec );
-  
-  void SetPMTModel( PMTModel _mod );
-  void FitwPMTModel( TH1 *hspec );
-  
-  ClassDef( SPEFitter, 1 )
-    
+   Int_t fit_status;
+
+   Double_t vals[20];
+   Double_t errs[20];
+
+   Double_t ndof;
+   Double_t chi2r;
+
+   Double_t FindMu(TH1D *hspec, Double_t _Q0, Double_t _s0);
+   Double_t FindG(TH1 *hspec, Double_t _Q0, Double_t _mu);
+
+   void SetNummethod(NumIntegration _num);
+   void FitwNummethod(TH1 *hspec);
+
+   void SetDFTmethod(DFTmethod _dft);
+   void FitwDFTmethod(TH1 *hspec);
+
+   void SetPMTModel(PMTModel _mod);
+   void FitwPMTModel(TH1 *hspec);
+
+   ClassDef(SPEFitter, 1)
 };
 
 #endif
