@@ -10,13 +10,15 @@
 class SPEResponse : public TObject {
 private:
    PMType::Response spetype;
-
-public:
+   
+   public:
    SPEResponse();
    SPEResponse(PMType::Response _spetype, Double_t _params[]);
    virtual ~SPEResponse();
    
    void SetParams(Double_t _params[]);
+   PMType::Response GetResponse(){ return spetype; }
+   TF1 *GetFitFunc();
    Double_t GetValue(Double_t xx);
    Double_t GenQ();
    

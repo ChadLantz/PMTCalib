@@ -5,7 +5,7 @@
 
 ClassImp(SPEResponse)
 
-   Double_t _gausexpfunc(Double_t *x, Double_t *par)
+Double_t _gausexpfunc(Double_t *x, Double_t *par)
 {
    Double_t xx = x[0];
    Double_t Q = par[0];
@@ -170,13 +170,26 @@ Double_t _testfunc(Double_t *x, Double_t *par)
    return result;
 }
 
-SPEResponse::SPEResponse() {}
+SPEResponse::SPEResponse(): spefunc(nullptr) {}
 
 SPEResponse::~SPEResponse() {}
 
 SPEResponse::SPEResponse(PMType::Response _spetype, Double_t _params[])
 {
    spetype = _spetype;
+   spefunc = GetFitFunc();
+   SetParams(_params);
+
+   spefunc->SetLineColor(kBlue);
+   spefunc->SetLineWidth(2.0);
+   spefunc->SetNpx(10000);
+}
+
+TF1 *SPEResponse::GetFitFunc()
+{
+  if (spefunc)
+    return spefunc;
+
    Double_t (*funcPtr)(Double_t *, Double_t *);
    Double_t xMin = 0.0, xMax = 0.0;
 
@@ -238,15 +251,7 @@ SPEResponse::SPEResponse(PMType::Response _spetype, Double_t _params[])
       break;
    }
 
-   spefunc = new TF1("spefunc", funcPtr, xMin, xMax, nparams);
-   for (UInt_t par = 0; par < nparams; ++par) {
-      params[par] = _params[par];
-      spefunc->SetParameter(par, params[par]);
-   }
-
-   spefunc->SetLineColor(kBlue);
-   spefunc->SetLineWidth(2.0);
-   spefunc->SetNpx(10000);
+   return new TF1("spefunc", funcPtr, xMin, xMax, nparams);
 }
 
 void SPEResponse::SetParams(Double_t _params[])
