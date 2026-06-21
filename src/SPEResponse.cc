@@ -172,106 +172,100 @@ Double_t _testfunc(Double_t *x, Double_t *par)
 
 SPEResponse::SPEResponse(): spefunc(nullptr) {}
 
-SPEResponse::~SPEResponse() {}
+SPEResponse::~SPEResponse() {
+}
 
-SPEResponse::SPEResponse(PMType::Response _spetype, Double_t _params[])
+////////////////////////////////////////////////////////////////////////////////
+/// Main constructor. Initializes member TF1 with the appropriate fit function,
+/// parameters, parameter names, and range
+///
+/// @param _spetype Single photo-electron response function enum
+/// @param _params Array of initial parameters
+SPEResponse::SPEResponse(PMType::Response _spetype, Double_t _params[]): spefunc(nullptr)
 {
    spetype = _spetype;
-   spefunc = GetFitFunc();
-   SetParams(_params);
+   Double_t (*funcPtr)(Double_t *, Double_t *);
+   Double_t xMin = 0.0, xMax = 0.0;
+   std::vector<std::string> parNames;
+
+   switch (spetype) {
+   case PMType::GAUSS:
+      funcPtr = _gausexpfunc;
+      nparams = 4;
+      xMin = _params[0] - 80.0 * _params[1];
+      xMax = _params[0] + 80.0 * _params[1];
+      parNames = {"Q", "s", "#alpha", "w"};
+      break;
+
+   case PMType::GAMMA:
+      funcPtr = _gammaexpfunc;
+      nparams = 4;
+      xMin = 1.0 / _params[0] - 80.0 * 1.0 / _params[0] / sqrt(1.0 + _params[1]);
+      xMax = 1.0 / _params[0] + 80.0 * 1.0 / _params[0] / sqrt(1.0 + _params[1]);
+      parNames = {"#lambda", "#kappa", "#alpha", "w"};
+      break;
+
+   case PMType::WEIBULL:
+      funcPtr = _weibullexpfunc;
+      nparams = 4;
+      xMin = _params[0] - 80.0 * _params[0];
+      xMax = _params[0] + 80.0 * _params[0];
+      parNames = {"#lambda", "#kappa", "#alpha", "w"};
+      break;
+
+   case PMType::LOGNORMAL:
+      funcPtr = _lognormalexpfunc;
+      nparams = 4;
+      xMin = TMath::Log(_params[0]) - 80.0 * TMath::Log(_params[0]);
+      xMax = TMath::Log(_params[0]) + 80.0 * TMath::Log(_params[0]);
+      parNames = {"Q", "s", "#alpha", "w"};
+      break;
+
+   case PMType::GAUSS2EXP:
+      funcPtr = _gaus2expfunc;
+      nparams = 6;
+      xMin = _params[0] - 80.0 * _params[1];
+      xMax = _params[0] + 80.0 * _params[1];
+      parNames = {"Q", "s", "#alpha_{1}", "w_{1}", "#alpha_{2}", "w_{2}"};
+      break;
+
+   case PMType::GAMMA2EXP:
+      funcPtr = _gamma2expfunc;
+      nparams = 6;
+      xMin = 1.0 / _params[0] - 80.0 * 1.0 / _params[0] / sqrt(1.0 + _params[1]);
+      xMax = 1.0 / _params[0] + 80.0 * 1.0 / _params[0] / sqrt(1.0 + _params[1]);
+      parNames = {"#lambda", "#kappa", "#alpha_{1}", "w_{1}", "#alpha_{2}", "w_{2}"};
+      break;
+
+   case PMType::TEST:
+      funcPtr = _testfunc;
+      nparams = 5;
+      xMin = _params[0] - 80.0 * _params[1];
+      xMax = _params[0] + 80.0 * _params[1];
+      parNames = {"Q", "s", "#lambda", "#theta", "w"};
+      break;
+   }
+
+   spefunc = new TF1("spefunc", funcPtr, xMin, xMax, nparams);
+   for(UInt_t par = 0; par < nparams; ++par){
+      spefunc->SetParName(par, parNames[par].c_str());
+   }
+   SetParams(_params); // Set the member and spefunc params
 
    spefunc->SetLineColor(kBlue);
    spefunc->SetLineWidth(2.0);
    spefunc->SetNpx(10000);
 }
 
-TF1 *SPEResponse::GetFitFunc()
-{
-  if (spefunc)
-    return spefunc;
-
-   Double_t (*funcPtr)(Double_t *, Double_t *);
-   Double_t xMin = 0.0, xMax = 0.0;
-
-   switch (spetype) {
-   case PMType::GAUSS:
-      funcPtr = _gausexpfunc;
-      nparams = 4;
-      xMin = params[0] - 80.0 * params[1];
-      xMax = params[0] + 80.0 * params[1];
-      spefunc->SetParNames("Q", "s", "#alpha", "w");
-      break;
-
-   case PMType::GAMMA:
-      funcPtr = _gammaexpfunc;
-      nparams = 4;
-      xMin = 1.0 / params[0] - 80.0 * 1.0 / params[0] / sqrt(1.0 + params[1]);
-      xMax = 1.0 / params[0] + 80.0 * 1.0 / params[0] / sqrt(1.0 + params[1]);
-      spefunc->SetParNames("#lambda", "#kappa", "#alpha", "w");
-      break;
-
-   case PMType::WEIBULL:
-      funcPtr = _weibullexpfunc;
-      nparams = 4;
-      xMin = params[0] - 80.0 * params[0];
-      xMax = params[0] + 80.0 * params[0];
-      spefunc->SetParNames("#lambda", "#kappa", "#alpha", "w");
-      break;
-
-   case PMType::LOGNORMAL:
-      funcPtr = _lognormalexpfunc;
-      nparams = 4;
-      xMin = TMath::Log(params[0]) - 80.0 * TMath::Log(params[0]);
-      xMax = TMath::Log(params[0]) + 80.0 * TMath::Log(params[0]);
-      spefunc->SetParNames("Q", "s", "#alpha", "w");
-      break;
-
-   case PMType::GAUSS2EXP:
-      funcPtr = _gaus2expfunc;
-      nparams = 6;
-      xMin = params[0] - 80.0 * params[1];
-      xMax = params[0] + 80.0 * params[1];
-      spefunc->SetParNames("Q", "s", "#alpha_{1}", "w_{1}", "#alpha_{2}", "w_{2}");
-      break;
-
-   case PMType::GAMMA2EXP:
-      funcPtr = _gamma2expfunc;
-      nparams = 6;
-      xMin = 1.0 / params[0] - 80.0 * 1.0 / params[0] / sqrt(1.0 + params[1]);
-      xMax = 1.0 / params[0] + 80.0 * 1.0 / params[0] / sqrt(1.0 + params[1]);
-      spefunc->SetParNames("#lambda", "#kappa", "#alpha_{1}", "w_{1}", "#alpha_{2}", "w_{2}");
-      break;
-
-   case PMType::TEST:
-      funcPtr = _testfunc;
-      nparams = 5;
-      xMin = params[0] - 80.0 * params[1];
-      xMax = params[0] + 80.0 * params[1];
-      spefunc->SetParNames("Q", "s", "#lambda", "#theta", "w");
-      break;
-   }
-
-   return new TF1("spefunc", funcPtr, xMin, xMax, nparams);
-}
-
+////////////////////////////////////////////////////////////////////////////////
+/// Set the internal parameters as well as the member TF1 parameters if available
+///
+/// @param _params Array of fit parameters
 void SPEResponse::SetParams(Double_t _params[])
 {
    for (Int_t i = 0; i < nparams; i++) {
       params[i] = _params[i];
-      spefunc->SetParameter(i, params[i]);
+      if(spefunc)
+        spefunc->SetParameter(i, params[i]);
    }
-}
-
-Double_t SPEResponse::GetValue(Double_t xx)
-{
-   Double_t result = spefunc->Eval(xx);
-
-   return result;
-}
-
-Double_t SPEResponse::GenQ()
-{
-   Double_t _x = spefunc->GetRandom();
-
-   return _x;
 }

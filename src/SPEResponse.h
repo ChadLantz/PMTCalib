@@ -18,9 +18,9 @@ private:
    
    void SetParams(Double_t _params[]);
    PMType::Response GetResponse(){ return spetype; }
-   TF1 *GetFitFunc();
-   Double_t GetValue(Double_t xx);
-   Double_t GenQ();
+   TF1 *GetFitFunc(){ return spefunc; };
+   Double_t GetValue(Double_t xx){ return spefunc->Eval(xx); }
+   Double_t GenQ(){ return spefunc->GetRandom(); }
    
    Int_t nparams;
    Double_t params[10] = {-1.0};
