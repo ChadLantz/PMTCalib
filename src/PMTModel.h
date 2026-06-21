@@ -4,7 +4,6 @@
 
 #include "TObject.h"
 #include "TGraph.h"
-#include "TF1.h"
 
 #include "PMType.h"
 
@@ -38,6 +37,11 @@ public:
    Double_t F2(Double_t xx); // SIMPLE GAUSS 2
    Double_t F3(Double_t xx); // ANALYTICAL GAUSS 2
    Double_t F4(Double_t xx); // EXPLICIT GAUSS 2
+
+   static Double_t SIMPLEGAUSS(Double_t *xx, Double_t *pars); // SIMPLE GAUSS 1
+   static Double_t TRUNCGAUSS(Double_t *xx, Double_t *pars); // SIMPLE GAUSS 2
+   static Double_t ANATRUNCG(Double_t *xx, Double_t *pars); // ANALYTICAL GAUSS 2
+   static Double_t EXPTRUNCG(Double_t *xx, Double_t *pars); // EXPLICIT GAUSS 2
 
    TGraph *GetGraph();
    TGraph *GetGraphN(Int_t n);
