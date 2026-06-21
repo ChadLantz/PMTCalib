@@ -118,28 +118,19 @@ Double_t m_g(Double_t *x, Double_t *par)
 
 ClassImp(SPEFitter)
 
-   SPEFitter::SPEFitter()
-{
-}
-
-SPEFitter::~SPEFitter() {}
-
 void SPEFitter::SetNummethod(NumIntegration _num)
 {
-   num = _num;
-   num0 = _num;
+   num = num0 = _num;
 }
 
 void SPEFitter::SetDFTmethod(DFTmethod _dft)
 {
-   dft = _dft;
-   dft0 = _dft;
+   dft = dft0 = _dft;
 }
 
 void SPEFitter::SetPMTModel(PMTModel _mod)
 {
-   mod = _mod;
-   mod0 = _mod;
+   mod = mod0 = _mod;
 }
 
 Double_t SPEFitter::FindMu(TH1D *hspec, Double_t _Q0, Double_t _s0)
@@ -275,19 +266,14 @@ void SPEFitter::FitwDFTmethod(TH1 *hspec)
    mFFT->SetLimitedVariable(6, "PAR3", dft.spef.params[2], dft.spef.params[2] * 0.001, dft.spef.params[2] * 0.01,
                             dft.spef.params[2] * 100.0);
    mFFT->SetLimitedVariable(7, "PAR4", dft.spef.params[3], 0.01, 0.0, 0.60);
-   // mFFT->SetFixedVariable( 7, "PAR4", dft.spef.params[3] );
 
    if (dft.spef.nparams == 5) {
       mFFT->SetLimitedVariable(8, "PAR5", 0.0, 0.01, 0.0, 10.0);
-      // mFFT->SetFixedVariable( 8, "PAR5", 0.0 );
    }
 
-   if (dft.spef.nparams == 6) {
-      // mFFT->SetFixedVariable( 8, "PAR5", dft.spef.params[4] );
+   if (dft.spef.nparams == 6) { //???
       mFFT->SetLimitedVariable(8, "PAR5", dft.spef.params[4], dft.spef.params[4] * 0.001, dft.spef.params[4] * 0.01,
                                dft.spef.params[4] * 100.0);
-
-      // mFFT->SetFixedVariable( 9, "PAR6", dft.spef.params[5] );
       mFFT->SetLimitedVariable(9, "PAR6", dft.spef.params[5], 0.01, 0.0, 0.30);
    }
 
@@ -346,6 +332,7 @@ void SPEFitter::FitwPMTModel(TH1 *hspec)
 
    const char *varNames[] = {"Norm", "Q0", "s0", "mu", "Q", "s1", "alpha", "w"};
 
+   // This seems to be the only reason not to use a stock TF1 for PMT model fits
    Double_t varStepSize[]{mod.params[0] * 0.01,
                           TMath::Abs(mod.params[1]) * 0.01 + 0.001 * mod.params[2],
                           mod.params[2] * 0.01,
@@ -404,7 +391,7 @@ void SPEFitter::FitwPMTModel(TH1 *hspec)
    const double *erpars = mMOD->Errors();
 
    fit_status = mMOD->Status();
-   mMOD->PrintResults();
+   // mMOD->PrintResults();
 
    ndof = Nb - mod.nparams;
    chi2r = mMOD->MinValue() / (ndof);

@@ -21,8 +21,8 @@ private:
    TF1 *ped_func;
 
 public:
-   SPEFitter();
-   virtual ~SPEFitter();
+   SPEFitter() = default;
+   virtual ~SPEFitter() = default;
 
    ROOT::Minuit2::Minuit2Minimizer *mNum;
    ROOT::Minuit2::Minuit2Minimizer *mFFT;
