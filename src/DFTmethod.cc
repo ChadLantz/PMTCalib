@@ -2,6 +2,7 @@
 #include "DFTmethod.h"
 #include "TError.h" // IWYU pragma: keep
 
+#include <RtypesCore.h>
 #include <fftw3.h>
 
 ClassImp(DFTmethod)
@@ -11,24 +12,70 @@ ClassImp(DFTmethod)
 {
 }
 
-DFTmethod::~DFTmethod() {}
-
-DFTmethod::DFTmethod(Int_t _nbins, Double_t _xmin, Double_t _xmax, SPEResponse _spef) : gr(nullptr)
+DFTmethod::DFTmethod(Int_t _nbins, Double_t _xmin, Double_t _xmax, SPEResponse _spef)
+   : N(2 * _nbins + 60),
+     M(N / 2 + 1),
+     nbins(_nbins),
+     xmin(_xmin),
+     xmax(_xmax),
+     step((xmax - xmin) / (1.0 * nbins * 1.0)),
+     edge(xmin),
+     gr(nullptr),
+     spef(_spef)
 {
-   nbins = _nbins;
-   xmin = _xmin;
-   xmax = _xmax;
-   step = (xmax - xmin) / (1.0 * nbins * 1.0);
-   spef = _spef;
-   N = 2 * nbins + 60;
-   M = N / 2 + 1;
-
-   xvalues.clear();
    for (UInt_t i = 0; i < N; ++i) {
       xvalues.push_back(xmin + 1.0 * i * step);
    }
-   edge = xmin;
 }
+
+DFTmethod::DFTmethod(DFTmethod &other)
+   : N(other.N),
+     M(other.M),
+     nbins(other.nbins),
+     xmin(other.xmin),
+     xmax(other.xmax),
+     step(other.step),
+     edge(other.edge),
+     xvalues(other.xvalues),
+     yvalues(other.yvalues),
+     gr(other.gr),
+     spef(other.spef),
+     wbin(other.wbin),
+     Norm(other.Norm),
+     Q0(other.Q0),
+     s0(other.s0),
+     mu(other.mu)
+{
+   for (UInt_t par = 0; par < nPars; ++par) {
+      parCache[par] = other.parCache[par];
+   }
+}
+
+DFTmethod DFTmethod::operator=(const DFTmethod &other)
+{
+   N = other.N;
+   M = other.M;
+   nbins = other.nbins;
+   xmin = other.xmin;
+   xmax = other.xmax;
+   step = other.step;
+   edge = other.edge;
+   xvalues = other.xvalues;
+   yvalues = other.yvalues;
+   gr = other.gr ? static_cast<TGraph *>(other.gr->Clone()) : nullptr;
+   spef = other.spef;
+   wbin = other.wbin;
+   Norm = other.Norm;
+   Q0 = other.Q0;
+   s0 = other.s0;
+   mu = other.mu;
+   for (UInt_t par = 0; par < nPars; ++par) {
+      parCache[par] = other.parCache[par];
+   }
+   return *this;
+}
+
+DFTmethod::~DFTmethod() {}
 
 void DFTmethod::CalculateValues()
 {
@@ -111,6 +158,28 @@ void DFTmethod::CalculateValues()
 Double_t DFTmethod::GetValue(Double_t xx)
 {
    return gr->Eval(xx);
+}
+
+Double_t DFTmethod::Eval(Double_t *xx, Double_t *pars)
+{
+   Bool_t parsChanged = kFALSE;
+   for (UInt_t par = 0; par < nPars; ++par) {
+      if (pars[par] != parCache[par]) {
+         parCache[par] = pars[par];
+         parsChanged = kTRUE;
+      }
+   }
+
+   if (parsChanged) {
+      Norm = pars[0];
+      Q0 = pars[1];
+      s0 = pars[2];
+      mu = pars[3];
+      spef.SetParams(&pars[4]);
+      CalculateValues();
+   }
+
+   return GetValue(xx[0]);
 }
 
 TGraph *DFTmethod::GetGraph()
