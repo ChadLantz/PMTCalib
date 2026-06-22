@@ -5,6 +5,52 @@
 #include <RtypesCore.h>
 #include <fftw3.h>
 
+struct FFTWState {
+   std::vector<Double_t> xvalues;
+   std::vector<Double_t> yvalues;
+   std::vector<Double_t> wfinBG;
+   std::vector<Double_t> wfinSG;
+   std::vector<Double_t> fftout;
+   fftw_complex *wfoutBG;
+   fftw_complex *wfoutSG;
+   fftw_complex *wfout;
+   fftw_plan FWfftBG;
+   fftw_plan FWfftSG;
+   fftw_plan BWfft;
+
+   FFTWState(){};
+
+   void init(size_t N, Double_t xmin = 0.0, Double_t step = 0.0)
+   {
+      xvalues.resize(N);
+      for (UInt_t i = 0; i < N; ++i) {
+         xvalues[i] = xmin + 1.0 * i * step;
+      }
+      yvalues.resize(N);
+      wfinBG.resize(N);
+      wfinSG.resize(N);
+      fftout.resize(N);
+      wfoutBG = fftw_alloc_complex(N / 2 + 1);
+      wfoutSG = fftw_alloc_complex(N / 2 + 1);
+      wfout = fftw_alloc_complex(N / 2 + 1);
+      FWfftBG = fftw_plan_dft_r2c_1d(N, wfinBG.data(), wfoutBG, FFTW_ESTIMATE);
+      FWfftSG = fftw_plan_dft_r2c_1d(N, wfinSG.data(), wfoutSG, FFTW_ESTIMATE);
+      BWfft = fftw_plan_dft_c2r_1d(N, wfout, fftout.data(), FFTW_ESTIMATE);
+   }
+
+   ~FFTWState()
+   {
+      if (FWfftBG)
+         fftw_destroy_plan(FWfftBG);
+      if (FWfftSG)
+         fftw_destroy_plan(FWfftSG);
+      if (BWfft)
+         fftw_destroy_plan(BWfft);
+   }
+};
+
+thread_local FFTWState g_fftwState;
+
 ClassImp(DFTmethod)
 
    DFTmethod::DFTmethod()
@@ -20,144 +66,63 @@ DFTmethod::DFTmethod(Int_t _nbins, Double_t _xmin, Double_t _xmax, SPEResponse _
      xmax(_xmax),
      step((xmax - xmin) / (1.0 * nbins * 1.0)),
      edge(xmin),
+     nCalls(0),
      gr(nullptr),
      spef(_spef)
 {
-   for (UInt_t i = 0; i < N; ++i) {
-      xvalues.push_back(xmin + 1.0 * i * step);
-   }
+
 }
 
-DFTmethod::DFTmethod(DFTmethod &other)
-   : N(other.N),
-     M(other.M),
-     nbins(other.nbins),
-     xmin(other.xmin),
-     xmax(other.xmax),
-     step(other.step),
-     edge(other.edge),
-     xvalues(other.xvalues),
-     yvalues(other.yvalues),
-     gr(other.gr),
-     spef(other.spef),
-     wbin(other.wbin),
-     Norm(other.Norm),
-     Q0(other.Q0),
-     s0(other.s0),
-     mu(other.mu)
+DFTmethod::~DFTmethod()
 {
-   for (UInt_t par = 0; par < nPars; ++par) {
-      parCache[par] = other.parCache[par];
-   }
 }
-
-DFTmethod DFTmethod::operator=(const DFTmethod &other)
-{
-   N = other.N;
-   M = other.M;
-   nbins = other.nbins;
-   xmin = other.xmin;
-   xmax = other.xmax;
-   step = other.step;
-   edge = other.edge;
-   xvalues = other.xvalues;
-   yvalues = other.yvalues;
-   gr = other.gr ? static_cast<TGraph *>(other.gr->Clone()) : nullptr;
-   spef = other.spef;
-   wbin = other.wbin;
-   Norm = other.Norm;
-   Q0 = other.Q0;
-   s0 = other.s0;
-   mu = other.mu;
-   for (UInt_t par = 0; par < nPars; ++par) {
-      parCache[par] = other.parCache[par];
-   }
-   return *this;
-}
-
-DFTmethod::~DFTmethod() {}
 
 void DFTmethod::CalculateValues()
 {
-   fftw_plan FWfftBG;
-   fftw_plan FWfftSG;
-
-   Double_t wfinBG[N];
-   fftw_complex wfoutBG[M];
-   Double_t wfinSG[N];
-   fftw_complex wfoutSG[M];
+   FFTWState& state = g_fftwState;
+   if(!state.FWfftBG){
+      state.init(N, xmin, step);
+   }
 
    for (UInt_t i = 0; i < N; i++) {
-      Double_t xx = xvalues.at(i) - edge;
-
+      Double_t xx = state.xvalues[i] - edge;
       Double_t arg = 0.0;
+
       if (s0 != 0.0)
          arg = (xx - Q0 + edge) / s0;
       else
          Error("CalculateValues", "Division by zero: sigma0");
-      Double_t yy = 1.0 / (sqrt(2.0 * TMath::Pi()) * s0) * TMath::Exp(-0.5 * arg * arg);
-      wfinBG[i] = yy;
 
-      wfinSG[i] = spef.GetValue(xx);
+      state.wfinBG[i] = 1.0 / (sqrt(2.0 * TMath::Pi()) * s0) * TMath::Exp(-0.5 * arg * arg);
+      state.wfinSG[i] = spef.GetValue(xx);
    }
 
-   FWfftBG = fftw_plan_dft_r2c_1d(N, wfinBG, wfoutBG, FFTW_ESTIMATE);
-   fftw_execute(FWfftBG);
-   fftw_destroy_plan(FWfftBG);
-
-   FWfftSG = fftw_plan_dft_r2c_1d(N, wfinSG, wfoutSG, FFTW_ESTIMATE);
-   fftw_execute(FWfftSG);
-   fftw_destroy_plan(FWfftSG);
-
-   fftw_complex wfout[M];
-   Double_t fftout[N];
+   fftw_execute(state.FWfftBG);
+   fftw_execute(state.FWfftSG);
 
    for (UInt_t i = 0; i < M; i++) {
-      Double_t amp_BG = sqrt(pow(wfoutBG[i][0], 2.0) + pow(wfoutBG[i][1], 2.0));
-      Double_t ph_BG = fftPhase(wfoutBG[i][1], wfoutBG[i][0]);
+      Double_t amp_BG = sqrt(pow(state.wfoutBG[i][0], 2.0) + pow(state.wfoutBG[i][1], 2.0));
+      Double_t ph_BG = fftPhase(state.wfoutBG[i][1], state.wfoutBG[i][0]);
 
-      Double_t ReS = wfoutSG[i][0];
-      Double_t ImS = wfoutSG[i][1];
-
-      double ph = (ph_BG + mu * ImS * step);
-
-      wfout[i][0] = amp_BG * TMath::Exp(mu * ReS * step) * TMath::Cos(ph);
-      wfout[i][1] = amp_BG * TMath::Exp(mu * ReS * step) * TMath::Sin(ph);
+      double ph = (ph_BG + mu * state.wfoutSG[i][1] * step);
+      state.wfout[i][0] = amp_BG * TMath::Exp(mu * state.wfoutSG[i][0] * step) * TMath::Cos(ph);
+      state.wfout[i][1] = amp_BG * TMath::Exp(mu * state.wfoutSG[i][0] * step) * TMath::Sin(ph);
    }
 
-   fftw_plan BWfft;
-   BWfft = fftw_plan_dft_c2r_1d(N, wfout, fftout, FFTW_ESTIMATE);
-   fftw_execute(BWfft);
-   fftw_destroy_plan(BWfft);
+   fftw_execute(state.BWfft);
 
-   yvalues.clear();
    for (UInt_t i = 0; i < N; i++) {
-      Double_t yy = Norm * wbin * TMath::Exp(-1.0 * mu) * fftout[i] / (1.0 * N * 1.0);
-      yvalues.push_back(yy);
-   }
-
-   Double_t x[nbins];
-   Double_t y[nbins];
-
-   for (Int_t i = 0; i < nbins; i++) {
-      x[i] = xvalues.at(i);
-      y[i] = yvalues.at(i);
+      state.yvalues[i] = Norm * wbin * TMath::Exp(-mu) * state.fftout[i] / Double_t(N);
    }
 
    if (gr) {
-      gr->Clear();
       for (Int_t i = 0; i < nbins; i++)
-         gr->SetPoint(i, x[i], y[i]);
+         gr->SetPoint(i, state.xvalues[i], state.yvalues[i]);
    } else {
-      gr = new TGraph(nbins, x, y);
+      gr = new TGraph(nbins, state.xvalues.data(), state.yvalues.data());
    }
 
    return;
-}
-
-Double_t DFTmethod::GetValue(Double_t xx)
-{
-   return gr->Eval(xx);
 }
 
 Double_t DFTmethod::Eval(Double_t *xx, Double_t *pars)
@@ -171,6 +136,7 @@ Double_t DFTmethod::Eval(Double_t *xx, Double_t *pars)
    }
 
    if (parsChanged) {
+      nCalls++;
       Norm = pars[0];
       Q0 = pars[1];
       s0 = pars[2];
@@ -179,7 +145,7 @@ Double_t DFTmethod::Eval(Double_t *xx, Double_t *pars)
       CalculateValues();
    }
 
-   return GetValue(xx[0]);
+   return gr->Eval(xx[0]);
 }
 
 TGraph *DFTmethod::GetGraph()
@@ -197,69 +163,55 @@ TGraph *DFTmethod::GetGraph()
 
 TGraph *DFTmethod::GetGraphN(Int_t n)
 {
+   FFTWState& state = g_fftwState;
+   if(!state.FWfftBG){
+      state.init(N, xmin, step);
+   }
+
    CalculateValues();
-
-   fftw_plan FWfftBG;
-   fftw_plan FWfftSG;
-
-   Double_t wfinBG[N];
-   fftw_complex wfoutBG[M];
-   Double_t wfinSG[N];
-   fftw_complex wfoutSG[M];
+   Double_t dblN = n;
 
    for (UInt_t i = 0; i < N; i++) {
-      Double_t xx = xvalues.at(i) - edge;
+      Double_t xx = state.xvalues.at(i) - edge;
 
       Double_t arg = 0.0;
       if (s0 != 0.0)
          arg = (xx - Q0 + edge) / s0;
       else
          Error("GetGraphN", "Division by zero: sigma0");
-      Double_t yy = 1.0 / (sqrt(2.0 * TMath::Pi()) * s0) * TMath::Exp(-0.5 * arg * arg);
-      wfinBG[i] = yy;
 
-      wfinSG[i] = spef.GetValue(xx);
+      state.wfinBG[i] = 1.0 / (sqrt(2.0 * TMath::Pi()) * s0) * TMath::Exp(-0.5 * arg * arg);
+      state.wfinSG[i] = spef.GetValue(xx);
    }
 
-   FWfftBG = fftw_plan_dft_r2c_1d(N, wfinBG, wfoutBG, FFTW_ESTIMATE);
-   fftw_execute(FWfftBG);
-   fftw_destroy_plan(FWfftBG);
-
-   FWfftSG = fftw_plan_dft_r2c_1d(N, wfinSG, wfoutSG, FFTW_ESTIMATE);
-   fftw_execute(FWfftSG);
-   fftw_destroy_plan(FWfftSG);
-
-   fftw_complex wfout[M];
-   Double_t fftout[N];
+   fftw_execute(state.FWfftBG);
+   fftw_execute(state.FWfftSG);
 
    for (UInt_t i = 0; i < M; i++) {
-      Double_t amp_BG = sqrt(pow(wfoutBG[i][0], 2.0) + pow(wfoutBG[i][1], 2.0));
-      Double_t ph_BG = fftPhase(wfoutBG[i][1], wfoutBG[i][0]);
+      Double_t amp_BG = sqrt(pow(state.wfoutBG[i][0], 2.0) + pow(state.wfoutBG[i][1], 2.0));
+      Double_t ph_BG = fftPhase(state.wfoutBG[i][1], state.wfoutBG[i][0]);
 
-      Double_t amp_SG = sqrt(pow(wfoutSG[i][0], 2.0) + pow(wfoutSG[i][1], 2.0));
-      Double_t ph_SG = fftPhase(wfoutSG[i][1], wfoutSG[i][0]);
+      Double_t amp_SG = sqrt(pow(state.wfoutSG[i][0], 2.0) + pow(state.wfoutSG[i][1], 2.0));
+      Double_t ph_SG = fftPhase(state.wfoutSG[i][1], state.wfoutSG[i][0]);
 
-      double ph = (ph_BG + 1.0 * n * ph_SG);
+      double ph = (ph_BG + dblN * ph_SG);
 
-      wfout[i][0] = amp_BG * pow(step * amp_SG, 1.0 * n * 1.0) * TMath::Cos(ph);
-      wfout[i][1] = amp_BG * pow(step * amp_SG, 1.0 * n * 1.0) * TMath::Sin(ph);
+      state.wfout[i][0] = amp_BG * pow(step * amp_SG, dblN) * TMath::Cos(ph);
+      state.wfout[i][1] = amp_BG * pow(step * amp_SG, dblN) * TMath::Sin(ph);
    }
 
-   fftw_plan BWfft;
-   BWfft = fftw_plan_dft_c2r_1d(N, wfout, fftout, FFTW_ESTIMATE);
-   fftw_execute(BWfft);
-   fftw_destroy_plan(BWfft);
+   fftw_execute(state.BWfft);
+   fftw_destroy_plan(state.BWfft);
 
    Double_t x[nbins];
    Double_t y[nbins];
 
    for (Int_t i = 0; i < nbins; i++) {
-      x[i] = xvalues.at(i);
-      Double_t y_ = Norm * wbin * TMath::Exp(-1.0 * mu) / TMath::Factorial(n) * pow(mu, 1.0 * n * 1.0) * fftout[i] /
-                    (1.0 * N * 1.0);
+      x[i] = state.xvalues.at(i);
+      Double_t y_ = Norm * wbin * TMath::Exp(-mu) / TMath::Factorial(n) * pow(mu, dblN) * state.fftout[i] / Double_t(N);
 
       if (y_ < 1.0e-10)
-         y[i] = 1.e-4;
+         y[i] = 1.e-4; // I don't like this. I'd rather use max to set a floor. This might hide issues
       else
          y[i] = y_;
    }
@@ -275,6 +227,7 @@ TGraph *DFTmethod::GetGraphN(Int_t n)
    return _gr;
 }
 
+// Atan2? Try replacing once things are stable
 Double_t DFTmethod::fftPhase(Double_t vy, Double_t vz)
 {
    Double_t thetayz = -999.0;
