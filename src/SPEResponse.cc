@@ -172,7 +172,16 @@ Double_t _testfunc(Double_t *x, Double_t *par)
 
 SPEResponse::SPEResponse(): spefunc(nullptr) {}
 
+SPEResponse::SPEResponse(const SPEResponse &other)
+: nparams(other.nparams)
+{
+   if(other.spefunc)
+      spefunc = static_cast<TF1*>(other.spefunc->Clone());
+}
+
 SPEResponse::~SPEResponse() {
+   if(spefunc)
+      delete spefunc;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -250,8 +259,7 @@ SPEResponse::SPEResponse(PMType::Response _spetype, Double_t _params[]): spefunc
    for(UInt_t par = 0; par < nparams; ++par){
       spefunc->SetParName(par, parNames[par].c_str());
    }
-   SetParams(_params); // Set the member and spefunc params
-
+   SetParameters(_params);
    spefunc->SetLineColor(kBlue);
    spefunc->SetLineWidth(2.0);
    spefunc->SetNpx(10000);
@@ -261,11 +269,12 @@ SPEResponse::SPEResponse(PMType::Response _spetype, Double_t _params[]): spefunc
 /// Set the internal parameters as well as the member TF1 parameters if available
 ///
 /// @param _params Array of fit parameters
-void SPEResponse::SetParams(Double_t _params[])
+void SPEResponse::SetParameters(Double_t *_pars)
 {
-   for (Int_t i = 0; i < nparams; i++) {
-      params[i] = _params[i];
-      if(spefunc)
-        spefunc->SetParameter(i, params[i]);
+   for(UInt_t par = 0; par < nparams; ++par){
+      params[par] = _pars[par];
+      if(spefunc){
+         spefunc->SetParameter(par, _pars[par]);
+      }
    }
 }
