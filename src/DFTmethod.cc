@@ -85,7 +85,7 @@ void DFTmethod::CalculateValues()
 {
    FFTWState &state = g_fftwState;
    if (!state.IsInitialized())
-      state.init(nbins, xmin, step);
+      state.init(nbins, xmin, xmax);
 
    Double_t preFactor = 1.0 / (TMath::Sqrt(TMath::TwoPi()) * s0);
    for (UInt_t i = 0; i < state.N; i++) {
@@ -119,7 +119,7 @@ Double_t DFTmethod::Eval(Double_t *xx, Double_t *pars)
 {
    FFTWState &state = g_fftwState;
    if (!state.IsInitialized())
-      state.init(nbins, xmin, step);
+      state.init(nbins, xmin, xmax);
 
    SetParameters(pars);
    return state.gr->Eval(xx[0]);
@@ -150,7 +150,7 @@ TGraph *DFTmethod::GetGraph()
 {
    FFTWState &state = g_fftwState;
    if (!state.IsInitialized())
-      state.init(nbins, xmin, step);
+      state.init(nbins, xmin, xmax);
 
    CalculateValues();
 
@@ -167,7 +167,7 @@ TGraph *DFTmethod::GetGraphN(Int_t n)
 {
    FFTWState &state = g_fftwState;
    if (!state.IsInitialized())
-      state.init(nbins, xmin, step);
+      state.init(nbins, xmin, xmax);
 
    CalculateValues();
    Double_t dblN = n;
