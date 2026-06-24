@@ -1,6 +1,7 @@
-
 #include "PMT.h"
 
+
+#include "SPEResponseFactory.h"
 #include "TRandom.h"
 
 ClassImp(PMT)
@@ -11,14 +12,15 @@ ClassImp(PMT)
 
 PMT::~PMT() {}
 
-PMT::PMT(Int_t _nbins, Double_t _min, Double_t _max, Pedestal _ped, SPEResponse _res)
+PMT::PMT(Int_t _nbins, Double_t _min, Double_t _max, Pedestal _ped, PMType::Response _res, Double_t *_params)
 {
    nbins = _nbins;
    min = _min;
    max = _max;
 
    ped = _ped;
-   res = _res;
+   SPEResponseFactory sperf;
+   res = sperf.Build(_res, _params);
 
    spectrum = new TH1D("hspectrum", "PMT spectrum; Charge [AU]; Entries", nbins, min, max);
 
@@ -40,7 +42,7 @@ void PMT::GenSpectrum(Int_t ntot, Double_t mu)
       Int_t npe = gRandom->Poisson(mu);
 
       for (Int_t j = 0; j < npe; j++) {
-         q += res.GenQ();
+         q += res.GetRandom();
       }
 
       spectrum->Fill(q);

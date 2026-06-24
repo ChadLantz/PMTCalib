@@ -3,10 +3,11 @@
 
 #include <math.h>
 
+#include "PMType.h"
 #include "TObject.h"
 #include "TGraph.h"
 
-#include "SPEResponse.h"
+#include "SPEResponseFactory.h"
 
 
 
@@ -36,9 +37,9 @@ class NumIntegration : public TObject
   
   virtual ~NumIntegration();
   
-  NumIntegration( Int_t _nbins, Double_t _xmin, Double_t _xmax, SPEResponse _spef );
+  NumIntegration( Int_t _nbins, Double_t _xmin, Double_t _xmax, PMType::Response _sper, Double_t *_params);
 
-  SPEResponse spef;
+  TF1 spef;
   
   Double_t wbin;
   

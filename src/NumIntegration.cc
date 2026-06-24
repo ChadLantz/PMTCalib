@@ -1,5 +1,6 @@
 
 #include "NumIntegration.h"
+#include "PMType.h"
 
 ClassImp(NumIntegration)
 
@@ -9,13 +10,14 @@ ClassImp(NumIntegration)
 
 NumIntegration::~NumIntegration() {}
 
-NumIntegration::NumIntegration(Int_t _nbins, Double_t _xmin, Double_t _xmax, SPEResponse _spef)
+NumIntegration::NumIntegration(Int_t _nbins, Double_t _xmin, Double_t _xmax, PMType::Response _sper, Double_t *_params)
 {
    N = nbins = _nbins;
    xmin = _xmin;
    xmax = _xmax;
    step = (xmax - xmin) / (1.0 * nbins * 1.0);
-   spef = _spef;
+   SPEResponseFactory sperf;
+   spef = sperf.Build(_sper, _params);
 
    xvalues.clear();
    for (UInt_t i = 0; i < N; i++) {
@@ -63,16 +65,16 @@ void NumIntegration::CalculateValues()
          Double_t yy0 = 1.0 / (sqrt(2.0 * TMath::Pi()) * s0) * TMath::Exp(-0.5 * arg * arg);
 
          if (xt >= 0.0)
-            SR1 += yy0 * spef.GetValue(xt) * ds;
+            SR1 += yy0 * spef.Eval(xt) * ds;
       }
 
       SR1 *= TMath::Poisson(1, mu);
       result += SR1;
 
-      Double_t Q = spef.params[0];
-      Double_t s = spef.params[1];
-      Double_t alpha = spef.params[2];
-      Double_t w = spef.params[3];
+      Double_t Q = spef.GetParameter(0);
+      Double_t s = spef.GetParameter(1);
+      Double_t alpha = spef.GetParameter(2);
+      Double_t w = spef.GetParameter(3);
 
       Double_t gn = 0.5 * TMath::Erfc(-Q / (sqrt(2.0) * s));
       Double_t k = s / gn / sqrt(2.0 * TMath::Pi()) * TMath::Exp(-pow(Q, 2.0) / (2.0 * pow(s, 2.0)));
