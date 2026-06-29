@@ -1,63 +1,32 @@
 #ifndef NUMINTEGRATION_H
 #define NUMINTEGRATION_H
 
-#include <math.h>
-
+#include "IModel.h"
 #include "PMType.h"
-#include "TObject.h"
+#include "SPEResponse.h"
+
+#include "RtypesCore.h"
 #include "TGraph.h"
 
-#include "SPEResponseFactory.h"
+class NumIntegration : public IModel {
 
+public:
+   NumIntegration() = default;
+   NumIntegration(const NumIntegration &other);
+   NumIntegration(Int_t _nbins, Double_t _wbin, Double_t _xmin, Double_t _xmax, PMType::Response _sper);
+   virtual NumIntegration *Clone() const override { return new NumIntegration(*this); }
+   virtual ~NumIntegration();
 
+   virtual void SetParameters(const Double_t *pars) override;
+   void CalculateValues(const Double_t *pars) const;
 
-class NumIntegration : public TObject
-{
- private:
+   TGraph *GetGraph();
 
-  Int_t nbins;
-  
-  Double_t xmin;
-  Double_t xmax;
-
-  Double_t step;
-      
-  unsigned int N;
-    
-  std::vector<Double_t> xvalues;
-  std::vector<Double_t> yvalues;
-    
-  Double_t edge;
-
-  TGraph *gr;
-  
- public:
-  
-  NumIntegration();
-  
-  virtual ~NumIntegration();
-  
-  NumIntegration( Int_t _nbins, Double_t _xmin, Double_t _xmax, PMType::Response _sper, Double_t *_params);
-
-  TF1 spef;
-  
-  Double_t wbin;
-  
-  Double_t Norm;
-  
-  Double_t Q0;
-  Double_t s0;
-
-  Double_t mu;
-  
-  void CalculateValues();
-  Double_t GetValue( Double_t xx );
-
-  TGraph* GetGraph();
-
-  
-  ClassDef( NumIntegration, 1 )
-        
+private:
+   virtual Double_t DoEvalPar(Double_t x, const Double_t *pars) const override;
+   mutable UInt_t m_nCalls{0};
+   mutable SPEResponse m_resp;
+   TGraph *m_gr{nullptr};
 };
 
 #endif

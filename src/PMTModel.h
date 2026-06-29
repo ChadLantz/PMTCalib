@@ -1,53 +1,36 @@
-
 #ifndef PMTMODEL_H
 #define PMTMODEL_H
 
-#include "TObject.h"
-#include "TGraph.h"
-
+#include "IModel.h"
 #include "PMType.h"
 
-class PMTModel : public TObject {
-private:
-   Int_t nbins;
+#include "TGraph.h"
 
-   Double_t xmin;
-   Double_t xmax;
-
-   Double_t step;
-
+class PMTModel : public IModel {
 public:
-   PMTModel();
+   PMTModel() = default;
+   PMTModel(const PMTModel &other);
+   PMTModel(Int_t nbins, Double_t wbin, Double_t xmin, Double_t xmax, PMType::Model modtype);
+   virtual PMTModel *Clone() const override { return new PMTModel(*this); }
+   virtual ~PMTModel() = default;
 
-   virtual ~PMTModel();
-
-   PMTModel(Int_t _nbins, Double_t _xmin, Double_t _xmax, PMType::Model _modtype);
-
-   PMType::Model modtype;
-
-   Int_t nparams;
-   Double_t params[20] = {-1.0};
-
-   Double_t wbin;
-
-   void SetParams(Double_t _params[]);
-   Double_t GetValue(Double_t xx);
-
-   Double_t F1(Double_t xx); // SIMPLE GAUSS 1
-   Double_t F2(Double_t xx); // SIMPLE GAUSS 2
-   Double_t F3(Double_t xx); // ANALYTICAL GAUSS 2
-   Double_t F4(Double_t xx); // EXPLICIT GAUSS 2
-
-   static Double_t SIMPLEGAUSS(Double_t *xx, Double_t *pars); // SIMPLE GAUSS 1
-   static Double_t TRUNCGAUSS(Double_t *xx, Double_t *pars); // SIMPLE GAUSS 2
-   static Double_t ANATRUNCG(Double_t *xx, Double_t *pars); // ANALYTICAL GAUSS 2
-   static Double_t EXPTRUNCG(Double_t *xx, Double_t *pars); // EXPLICIT GAUSS 2
-
+   void SetModel(PMType::Model model);
+   Double_t am(const Int_t m, const Double_t o) const;
+   Double_t bm(const Int_t m, const Double_t o) const;
+   Double_t SIMPLEGAUSS(Double_t x, const Double_t *pars) const;
+   Double_t TRUNCGAUSS(Double_t x, const Double_t *pars) const;
+   Double_t ANATRUNCG(Double_t x, const Double_t *pars) const;
+   Double_t EXPTRUNCG(Double_t x, const Double_t *pars) const;
+   
    TGraph *GetGraph();
    TGraph *GetGraphN(Int_t n);
    TGraph *GetGraphN2(Int_t n);
-
-   ClassDef(PMTModel, 1)
+   
+private:
+   Int_t m_nlim = 10; ///< TODO:: figure out what this is
+   Int_t m_nlim2 = 10; ///< 
+   virtual Double_t DoEvalPar(Double_t x, const Double_t *p) const override;
+   PMType::Model m_modtype{PMType::Model::EXPTRUNCG};
 };
 
 #endif

@@ -1,40 +1,53 @@
-
 #include "NumIntegration.h"
 #include "PMType.h"
 
-ClassImp(NumIntegration)
+#include "TObject.h"
+#include "TMath.h"
+#include "RtypesCore.h"
 
-   NumIntegration::NumIntegration()
+NumIntegration::NumIntegration(Int_t nbins, Double_t wbin, Double_t xmin, Double_t xmax, PMType::Response sper)
+   : IModel(8, wbin, nbins, xmin, xmax),
+     m_resp(sper),
+     m_gr(new TGraph(nbins))
 {
-}
+   SetParNames({"Norm", "Q0", "#sigma_{0}", "#mu"});
+   SetNpar(4 + m_resp.NPar());
+   for (UInt_t par = 4; par < NPar(); ++par) {
+      ParSettings(par).SetName(m_resp.ParSettings(par - 4).Name());
+   }
 
-NumIntegration::~NumIntegration() {}
-
-NumIntegration::NumIntegration(Int_t _nbins, Double_t _xmin, Double_t _xmax, PMType::Response _sper, Double_t *_params)
-{
-   N = nbins = _nbins;
-   xmin = _xmin;
-   xmax = _xmax;
-   step = (xmax - xmin) / (1.0 * nbins * 1.0);
-   SPEResponseFactory sperf;
-   spef = sperf.Build(_sper, _params);
-
-   xvalues.clear();
-   for (UInt_t i = 0; i < N; i++) {
-      Double_t xx = xmin + wbin / 2.0 + 1.0 * i * step;
-      xvalues.push_back(xx);
+   for (UInt_t i = 0; i < m_nBins; i++) {
+      m_gr->SetPointX(i, m_xMin + 0.5 * m_wBin + Double_t(i) * m_step);
    }
 }
 
-void NumIntegration::CalculateValues()
+NumIntegration::NumIntegration(const NumIntegration &other)
+   : IModel(other),
+     m_nCalls(0),
+     m_resp(other.m_resp),
+     m_gr(static_cast<TGraph *>(other.m_gr->Clone()))
 {
-   Double_t x[N];
-   Double_t y[N];
+}
 
-   yvalues.clear();
-   for (UInt_t i = 0; i < N; i++) {
-      Double_t xx = xvalues.at(i);
-      x[i] = xx;
+NumIntegration::~NumIntegration()
+{
+   if (m_gr)
+      delete m_gr;
+}
+
+void NumIntegration::CalculateValues(const Double_t *pars) const
+{
+   Double_t Norm = pars[0];
+   Double_t Q0 = pars[1];
+   Double_t s0 = pars[2];
+   Double_t mu = pars[3];
+   Double_t Q = pars[4];
+   Double_t s = pars[5];
+   Double_t alpha = pars[6];
+   Double_t w = pars[7];
+
+   for (UInt_t i = 0; i < m_nBins; i++) {
+      Double_t xx = m_gr->GetPointX(i);
 
       Double_t result = 0.0;
 
@@ -65,16 +78,11 @@ void NumIntegration::CalculateValues()
          Double_t yy0 = 1.0 / (sqrt(2.0 * TMath::Pi()) * s0) * TMath::Exp(-0.5 * arg * arg);
 
          if (xt >= 0.0)
-            SR1 += yy0 * spef.Eval(xt) * ds;
+            SR1 += yy0 * m_resp(xt, &pars[4]) * ds;
       }
 
       SR1 *= TMath::Poisson(1, mu);
       result += SR1;
-
-      Double_t Q = spef.GetParameter(0);
-      Double_t s = spef.GetParameter(1);
-      Double_t alpha = spef.GetParameter(2);
-      Double_t w = spef.GetParameter(3);
 
       Double_t gn = 0.5 * TMath::Erfc(-Q / (sqrt(2.0) * s));
       Double_t k = s / gn / sqrt(2.0 * TMath::Pi()) * TMath::Exp(-pow(Q, 2.0) / (2.0 * pow(s, 2.0)));
@@ -100,43 +108,60 @@ void NumIntegration::CalculateValues()
          result += SRn;
       }
 
-      result *= wbin * Norm;
-
-      yvalues.push_back(result);
-      y[i] = result;
+      result *= m_wBin * Norm;
+      m_gr->SetPointY(i, result);
    }
-
-   gr = new TGraph(N, x, y);
-
-   return;
 }
 
-Double_t NumIntegration::GetValue(Double_t xx)
+void NumIntegration::SetParameters(const Double_t *pars)
 {
-   Double_t y_ = gr->Eval(xx);
+   Bool_t parsChanged = kFALSE;
+   for (UInt_t ipar = 0; ipar < NPar(); ++ipar) {
+      if (pars[ipar] != m_parameters[ipar]) {
+         m_parameters[ipar] = pars[ipar];
+         m_parSettings[ipar].SetValue(pars[ipar]);
+         parsChanged = kTRUE;
+      }
+   }
 
-   return y_;
+   if (parsChanged) {
+      m_nCalls++;
+      m_resp.SetParameters(&pars[4]);
+      CalculateValues(pars);
+   }
+}
+
+Double_t NumIntegration::DoEvalPar(Double_t x, const Double_t *pars) const
+{
+   Bool_t parsChanged = kFALSE;
+   for (UInt_t ipar = 0; ipar < NPar(); ++ipar) {
+      if (pars[ipar] != m_parameters[ipar]) {
+         m_parameters[ipar] = pars[ipar];
+         m_parSettings[ipar].SetValue(pars[ipar]);
+         parsChanged = kTRUE;
+      }
+   }
+
+   if (parsChanged) {
+      m_nCalls++;
+      m_resp.SetParameters(&pars[4]);
+      CalculateValues(pars);
+   }
+   return m_gr->Eval(x);
 }
 
 TGraph *NumIntegration::GetGraph()
 {
-   CalculateValues();
+   CalculateValues(Parameters());
 
-   Double_t x[N];
-   Double_t y[N];
-
-   for (UInt_t i = 0; i < N; i++) {
-      x[i] = xvalues.at(i);
-      Double_t y_ = GetValue(x[i]);
+   for (UInt_t i = 0; i < m_nBins; i++) {
+      Double_t y_ = m_gr->GetPointY(i);
 
       if (y_ < 1.0e-10)
-         y[i] = 1.e-4;
-      else
-         y[i] = y_;
+         m_gr->SetPointY(i, 1.e-4);
    }
 
-   TGraph *_gr = new TGraph(N, x, y);
-
+   TGraph *_gr = static_cast<TGraph *>(m_gr->Clone());
    _gr->SetLineWidth(2);
    int cc = kAzure + 1;
    _gr->SetLineColor(cc);
