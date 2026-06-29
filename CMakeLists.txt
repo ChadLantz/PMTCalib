@@ -62,6 +62,27 @@ install(FILES
     DESTINATION lib
 )
 
+# ------------------------------------------------------------------------------
+# Optionally compile examples
+if(DEFINED PMTCalib_Examples)
+    file(GLOB EXAMPLES ${CMAKE_CURRENT_SOURCE_DIR}/examples/*.cc)
+    foreach(example IN LISTS EXAMPLES)
+        get_filename_component(EX_NAME "${example}" NAME_WE)
+        add_executable(${EX_NAME} ${test} ${example})
+        target_include_directories(${EX_NAME} PRIVATE
+            $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>
+            ${ROOT_INCLUDE_DIRS}
+        )
+        target_link_libraries(${EX_NAME} PRIVATE
+            PMTCalib
+            ${ROOT_LIBRARIES}
+            ${ROOT_COMPONENT_LIBRARIES}
+        )
+        install(TARGETS ${EX_NAME} RUNTIME DESTINATION bin)
+    endforeach(example IN LIST EXAMPLES)
+    
+endif(DEFINED PMTCalib_Examples)
+
 #----------------------------------------------------------------------------
 # Export include dir variable for downstream use (optional)
 set(PMT_CALIB_INCLUDE_DIR "${CMAKE_INSTALL_PREFIX}/include" CACHE PATH "PMTCalib include dir")
