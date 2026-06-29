@@ -1,130 +1,95 @@
-
-#include "TApplication.h"
-
-#include "iostream"
-#include "iomanip"
-
-#include "TCanvas.h"
-
+#include "PMT.h"
 #include "PMTStyle.h"
 #include "PMType.h"
-
-#include "Pedestal.h"
-#include "SPEResponse.h"
-#include "PMT.h"
-
 #include "PMTModel.h"
 #include "SPEFitter.h"
 
-using namespace std;
+#include "TApplication.h"
+#include "TH1D.h"
+#include "TError.h"
+#include "TCanvas.h"
+#include "TStopwatch.h"
+#include <Rtypes.h>
 
 Int_t example2()
 {
-  time_t start;  
-  
-  time( &start );
-  
-  cout << "" << endl;
-  
-  cout << " The macro starts ( example2.C ) ... " << endl;
+   Info("example2.C", "\n\tThe macro starts ...\n");
+   gROOT->Reset();
+   PMTStyle::SetDefaultStyle();
+   ROOT::EnableImplicitMT();
 
-  cout << "" << endl;
+   // Spectrum generation parameters
+   Int_t nbins = 250;
+   Double_t xmin = -50.0;
+   Double_t xmax = 450.0;
+   Double_t Norm = 2.0e+5;
+   Double_t Q0 = 0.0;
+   Double_t s0 = 2.0;
+   Double_t mu = 1.2;
+   Double_t Q = 40.0;
+   Double_t s = 13.0;
+   Double_t alpha = 1.0 / 8.0;
+   Double_t w = 0.2;
+   Double_t Gtrue = w / alpha + (1.0 - w) * Q;
+   Double_t p[4] = {Q, s, alpha, w};
 
-  gROOT->Reset();
-  
-  PMTStyle::SetDefaultStyle();
+   // Generate the spectrum to be fit
+   PMT specimen(nbins, xmin, xmax, Q0, s0, PMType::Response::GAUSS, p);
+   TH1D *hSpec = specimen.GenSpectrum(Norm, mu);
 
-  
-  TCanvas *c1 = new TCanvas( "c1", "" );
-  c1->cd();
-  c1->SetLogy();
+   // Start the clock before generating the model
+   TStopwatch sw;
+   sw.Start();
 
-  Double_t Q0 = 0.0;
-  Double_t s0 = 2.0;
-  Pedestal ped( Q0, s0 );
-  
-  Double_t Q = 40.0;
-  Double_t s = 13.0;
-  Double_t alpha = 1.0/8.0;
-  Double_t w = 0.2;
-  Double_t p[4] = { Q, s, alpha, w };
-  SPEResponse gaus( PMType::GAUSS, p );
+   // Create the fitter/model. The fitter generates seeds from the histogram and
+   // the given Pedestal mean and width which is gathered from dark current data
+   SPEFitter fitter;
+   PMTModel *mod = fitter.CreatePMTModel(hSpec, PMType::Model::TRUNCGAUSS, Q0, s0);
+   Double_t dataXmin = 0.0, dataXmax = 0.0;
+   mod->GetRange(dataXmin, dataXmax); // The range is found with the seeds
 
-  Int_t nbins = 250;
-  Double_t xmin = -50.0;
-  Double_t xmax = 450.0;
-    
-  PMT specimen( nbins, xmin, xmax, ped, gaus );
-  Double_t mu = 1.2;
-  Int_t ntot = 2.0e+5;
-  specimen.GenSpectrum( ntot, mu );
-  specimen.GetSpectrum()->SetStats(0);
-  specimen.DrawSpectrum();
-  
-  
-  SPEFitter fit;
-  
-  PMTModel mod( 2.0*nbins, xmin, xmax, PMType::TRUNCGAUSS );
-  mod.wbin = specimen.GetSpectrum()->GetBinWidth(1);
-  
-  Double_t mu_test = fit.FindMu( specimen.GetSpectrum(), Q0, s0 );
-  Double_t g_test = fit.FindG( specimen.GetSpectrum(), Q0, mu_test );
-  
-  //Double_t p_test[8] = { 1.0*ntot*1.0, Q0, s0, mu, Q, s, alpha, w };
-  Double_t p_test[8] = { 1.0*ntot*1.0, Q0, s0, mu_test, g_test, 0.3*g_test, 1.0/(0.5*g_test), 0.2 };
-  mod.SetParams( p_test );
-  
-  fit.SetPMTModel( mod );
-  fit.FitwPMTModel( specimen.GetSpectrum() );
-  
-  Double_t p_bf[8] = { fit.vals[0], fit.vals[1], fit.vals[2], fit.vals[3], fit.vals[4], fit.vals[5], fit.vals[6], fit.vals[7] };
-  mod.SetParams( p_bf );
-   
-  TGraph *grBF = mod.GetGraph();
-  grBF->Draw( "SAME,L" );
-  
-  Double_t Gtrue = ( w/alpha+(1.0-w)*Q );
-  Double_t Gfit = ( fit.vals[7]/fit.vals[6]+(1.0-fit.vals[7])*fit.vals[4] ); 
-  
-  cout << " True Gain : " << Gtrue << endl;
-  cout << " BF Gain   : " << Gfit  << endl;
-  cout << " Deviation : " << ( Gfit/Gtrue - 1.0 )*100.0 << endl;
-  
-  cout << "" << endl;
-  cout << "" << endl;
+   // The model has been created and seeded.
+   // More parameter tuning can be done here
 
-  c1->Update();
-  c1->WaitPrimitive();
-  
-  
-  cout << " ... the macro ends ! " << endl;
-	  
-  cout << "" << endl;
-  
-  time_t end;      
-  
-  time( &end );
-      
-  Int_t dura = difftime( end, start );      
-   
-  Int_t min = dura / 60; Int_t sec = dura % 60;
-    
-  cout << " ---> "<< Form( "%02d:%02d", min, sec ) << endl;  
-    
-  cout << "" << endl;
+   // Minimize
+   ROOT::Fit::FitResult result = fitter.HybridMinimize(mod, hSpec);
 
-  cout << "" << endl;
-    
-  return 0;
-  
+   // Stop the clock after fiting
+   sw.Stop();
+   Info("example2.C", "Fit took %.0fms Real time and %.0fms CPU time", sw.RealTime() * 1000, sw.CpuTime() * 1000);
+
+   // Calculate the gain and print the result
+   Double_t Qfit = mod->ParSettings(4).Value();
+   Double_t alphaFit = mod->ParSettings(6).Value();
+   Double_t wFit = mod->ParSettings(7).Value();
+   Double_t Gfit = wFit / alphaFit + (1.0 - wFit) * Qfit;
+   Info("example2.C", "\tTrue Gain : %.2f\n\tBF Gain   : %.2f\n\tDeviation : %.2f%%", Gtrue, Gfit,
+        (Gfit / Gtrue - 1.0) * 100.0);
+
+   ROOT::DisableImplicitMT();
+
+   // Display the result
+   TF1 *displayFit = new TF1("display", mod, dataXmin, dataXmax, mod->NPar());
+   displayFit->SetFitResult(result);
+   displayFit->SetLineColor(kAzure + 2);
+   TGraph *grBF = mod->GetGraph();
+
+   TCanvas *c1 = new TCanvas("c1", "");
+   c1->cd();
+   c1->SetLogy();
+   hSpec->Draw("PEZ");
+   // grBF->Draw("SAME L");
+   displayFit->Draw("SAME L");
+   c1->Update();
+   c1->WaitPrimitive();
+   return 0;
 }
 
-int main() 
+int main()
 {
-  TApplication theApp( "App", 0, 0 );
-  
-  Int_t status = example2();
+   TApplication theApp("App", 0, 0);
 
-  return status;
-  
+   Int_t status = example2();
+
+   return status;
 }

@@ -1,156 +1,101 @@
-
-#include "TApplication.h"
-
-#include "iostream"
-#include "iomanip"
-
-#include "TCanvas.h"
-
+#include "DFTmethod.h"
+#include "PMT.h"
 #include "PMTStyle.h"
 #include "PMType.h"
-
-#include "Pedestal.h"
-#include "SPEResponse.h"
-#include "PMT.h"
-
-#include "DFTmethod.h"
-
 #include "SPEFitter.h"
 
-using namespace std;
+#include "TApplication.h"
+#include "TH1D.h"
+#include "TError.h"
+#include "TCanvas.h"
+#include "TStopwatch.h"
+#include <Fit/FitResult.h>
+#include <Rtypes.h>
 
 Int_t example4()
 {
-  time_t start;  
-  
-  time( &start );
-  
-  cout << "" << endl;
-  
-  cout << " The macro starts ( example4.C ) ... " << endl;
+   Info("example4.C", "\n\tThe macro starts ...\n");
+   gROOT->Reset();
+   PMTStyle::SetDefaultStyle();
+   // ROOT::EnableImplicitMT();
 
-  cout << "" << endl;
+   // Spectrum generation parameters
+   Int_t nbins = 250;
+   Double_t xmin = -50.0;
+   Double_t xmax = 450.0;
+   Double_t Norm = 2.0e+5;
+   Double_t Q0 = 0.0;
+   Double_t s0 = 2.0;
+   Double_t mu = 1.2;
+   Double_t lambda = 1.0 / 40.0;
+   Double_t theta = 8.4;
+   Double_t alpha = 1.0 / 8.0;
+   Double_t w = 0.2;
+   Double_t Gtrue = w / alpha + (1.0 - w) / lambda;
+   Double_t p[4] = {lambda, theta, alpha, w};
 
-  gROOT->Reset();
-  
-  PMTStyle::SetDefaultStyle();
+   // Generate the spectrum to be fit
+   PMT specimen(nbins, xmin, xmax, Q0, s0, PMType::Response::GAMMA, p);
+   TH1D *hSpec = specimen.GenSpectrum(Norm, mu);
 
-  
-  TCanvas *c1 = new TCanvas( "c1", "" );
-  c1->cd();
-  c1->SetLogy();
+   // Start the clock before generating the model
+   TStopwatch sw;
+   sw.Start();
 
-  Double_t Q0 = 0.0;
-  Double_t s0 = 2.0;
-  Pedestal ped( Q0, s0 );
-  
-  Double_t lambda = 1.0/40.0;
-  Double_t theta = 8.4;
-  Double_t alpha = 1.0/8.0;
-  Double_t w = 0.2;
-  Double_t p[4] = { lambda, theta, alpha, w };
-  SPEResponse gamma( PMType::GAMMA, p );
+   // Create the fitter/model. The fitter generates seeds from the histogram and
+   // the given Pedestal mean and width which is gathered from dark current data
+   SPEFitter fitter;
+   DFTmethod *method = fitter.CreateDFTmethod(hSpec, PMType::Response::GAMMA, Q0, s0);
 
-  Int_t nbins = 250;
-  Double_t xmin = -50.0;
-  Double_t xmax = 450.0;
-    
-  PMT specimen( nbins, xmin, xmax, ped, gamma );
-  Double_t mu = 1.2;
-  Int_t ntot = 2.0e+5;
-  specimen.GenSpectrum( ntot, mu );
-  specimen.GetSpectrum()->SetStats(0);
-  specimen.DrawSpectrum();
-  
-  
-  SPEFitter fit;
+   // The model has been created and seeded by the SPEFitter for convenience
+   // More parameter tuning can be done here
 
-  Double_t mu_test = fit.FindMu( specimen.GetSpectrum(), Q0, s0 );
-  Double_t g_test = fit.FindG( specimen.GetSpectrum(), Q0, mu_test );
-  
-  Double_t p_test[4] = { 1.0/g_test, 7.0, 1.0/(0.5*g_test), 0.2 };
-  
-  SPEResponse gamma_test( PMType::GAMMA, p_test );
-  DFTmethod dft( 2.0*nbins, xmin, xmax, gamma_test );
-    
-  dft.wbin = specimen.GetSpectrum()->GetBinWidth(1);
-  
-  dft.Norm = ntot;
-  
-  dft.Q0 = Q0;
-  dft.s0 = s0;
-  
-  dft.mu = mu_test;
-  
-  
-  fit.SetDFTmethod( dft );
-  fit.FitwDFTmethod( specimen.GetSpectrum() );
-  
-  dft.Norm = fit.vals[0];
-  
-  dft.Q0 = fit.vals[1];
-  dft.s0 = fit.vals[2];
+   // Minimize
+   ROOT::Fit::FitResult result = fitter.HybridMinimize(method, hSpec);
 
-  dft.mu = fit.vals[3]; 
-  
-  Double_t p_fit[4] = { fit.vals[4], fit.vals[5], fit.vals[6], fit.vals[7] };
-  dft.spef.SetParams( p_fit );
-  
-  TGraph *grBF = dft.GetGraph();
-  grBF->Draw( "SAME,L" );
+   // Stop the clock after fiting
+   sw.Stop();
+   Info("example4.C", "Fit took %.0fms Real time and %.0fms CPU time", sw.RealTime() * 1000, sw.CpuTime() * 1000);
 
-  TGraph *grPE[25];
-    
-  for ( Int_t i=0; i<25; i++ )
-    {
-      grPE[i] = dft.GetGraphN( i );
-      grPE[i]->Draw( "SAME,L" );
-      
-    }
-  
-  
-  Double_t Gtrue = ( w/alpha+(1.0-w)/lambda );
-  Double_t Gfit = ( fit.vals[7]/fit.vals[6]+(1.0-fit.vals[7])/fit.vals[4] ); 
-  
-  cout << " True Gain : " << Gtrue << endl;
-  cout << " BF Gain   : " << Gfit  << endl;
-  cout << " Deviation : " << ( Gfit/Gtrue - 1.0 )*100.0 << endl;
-  
-  cout << "" << endl;
-  cout << "" << endl;
+   // Calculate the gain and print the result
+   Double_t lambdaFit = method->ParSettings(4).Value();
+   Double_t alphaFit = method->ParSettings(6).Value();
+   Double_t wFit = method->ParSettings(7).Value();
+   Double_t Gfit = wFit / alphaFit + (1.0 - wFit) / lambdaFit;
+   Info("example4.C", "\tTrue Gain : %.2f\n\tBF Gain   : %.2f\n\tDeviation : %.2f%%", Gtrue, Gfit,
+        (Gfit / Gtrue - 1.0) * 100.0);
 
-  c1->Update();
-  c1->WaitPrimitive();
-  
-  
-  cout << " ... the macro ends ! " << endl;
-	  
-  cout << "" << endl;
-  
-  time_t end;      
-  
-  time( &end );
-      
-  Int_t dura = difftime( end, start );      
+   // Display the result
+   Double_t fitXmin, fitXmax;
+   method->GetRange(fitXmin, fitXmax);
+   TF1 *displayFit = new TF1("dfTF1", method, fitXmin, fitXmax, method->NPar());
+   for(UInt_t ipar = 0; ipar < method->NPar(); ++ipar){
+      displayFit->SetParName(ipar, method->ParameterName(ipar).c_str());
+   }
+   displayFit->SetFitResult(result);
+   displayFit->SetLineColor(kAzure + 1);
+   result.Print(std::cout);
    
-  Int_t min = dura / 60; Int_t sec = dura % 60;
-    
-  cout << " ---> "<< Form( "%02d:%02d", min, sec ) << endl;  
-    
-  cout << "" << endl;
-
-  cout << "" << endl;
-    
-  return 0;
-  
+   TCanvas *c1 = new TCanvas("c1", "");
+   c1->cd();
+   c1->SetLogy();
+   hSpec->Draw("PEZ");
+   displayFit->Draw("SAME L");
+   TGraph *grPE[25];
+   for (Int_t i = 0; i < 25; i++) {
+      grPE[i] = method->GetGraphN(i);
+      grPE[i]->Draw("SAME,L");
+   }
+   c1->Update();
+   c1->WaitPrimitive();
+   return 0;
 }
 
-int main() 
+int main()
 {
-  TApplication theApp( "App", 0, 0 );
-  
-  Int_t status = example4();
+   TApplication theApp("App", 0, 0);
 
-  return status;
-  
+   Int_t status = example4();
+
+   return status;
 }
