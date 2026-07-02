@@ -254,3 +254,18 @@ PMTModel *SPEFitter::CreatePMTModel(TH1 *hspec, PMType::Model model, Double_t Q0
 
    return pmt;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+/// Create a TF1 containing the given model and transfer the parameter settings
+TF1 *SPEFitter::MakeTF1(IModel *model){
+   Double_t xMin = 0.0, xMax = 0.0;
+   model->GetRange(xMin, xMax);
+   TF1 *fit = new TF1("model", model, xMin, xMax, model->NPar());
+   for(UInt_t ipar = 0; ipar < model->NPar(); ++ipar){
+      ROOT::Fit::ParameterSettings par = model->ParSettings(ipar);
+      fit->SetParameter(ipar, par.Value());
+      fit->SetParLimits(ipar, par.LowerLimit(), par.UpperLimit());
+      fit->SetParName(ipar, par.Name().c_str());
+   }
+   return fit;
+}
