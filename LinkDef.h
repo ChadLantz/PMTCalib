@@ -21,4 +21,6 @@
 #pragma link C++ class Deconvolution+;
 #pragma link C++ class Occupancy+;
 
+#pragma link C++ class SPEFitter+;
+
 #endif
