@@ -16,6 +16,27 @@ public:
    // Required interface
    // Clone, NPar, Parameters, SetParameters, DoEvalPar
    virtual BaseFunc *Clone() const override = 0;
+   virtual Double_t Gain(const Double_t *pars) const = 0;
+   virtual Double_t GainError(const Double_t *pars, const Double_t *errs) const = 0;
+   Double_t Gain() const { return Gain(Parameters()); } ;
+   Double_t GainError() const { return GainError(Parameters(), Errors()); };
+
+   ////////////////////////////////////////////////////////////////////////////////
+   /// Set the parameter settings
+   virtual void SetParamsSettings(std::vector<ROOT::Fit::ParameterSettings> &settings) { m_parSettings = settings; }
+
+   ////////////////////////////////////////////////////////////////////////////////
+   /// Set the parameter errors
+   virtual void SetParErrors(const Double_t *errs)
+   {
+      assert(errs);
+      if (errs) {
+         for (UInt_t i; i < NPar(); ++i) {
+            m_parErrors[i] = errs[i];
+            m_parSettings[i].SetStepSize(errs[i]);
+         }
+      }
+   }
 
    ////////////////////////////////////////////////////////////////////////////////
    /// Set the parameters with the given array (non-const)
@@ -89,6 +110,10 @@ public:
    virtual const Double_t *Parameters() const override { return m_parameters.data(); }
 
    ////////////////////////////////////////////////////////////////////////////////
+   /// Return the pointer to an array of parameter values
+   virtual const Double_t *Errors() const { return m_parErrors.data(); }
+
+   ////////////////////////////////////////////////////////////////////////////////
    /// Get the vector of parameter settings (non-const method)
    std::vector<ROOT::Fit::ParameterSettings> ParamsSettings() { return m_parSettings; }
 
@@ -124,10 +149,11 @@ protected:
    /// A note on these two. IParametricFunctionOneDim demands a DoEval const method, but DFTmethod and NumIntegration
    /// need to keep an internal buffer 
    mutable std::vector<Double_t> m_parameters;       ///< Parameter values. Mutable for DFTmethod and NumIntegration
+   std::vector<Double_t> m_parErrors;                ///< Parameter errors
    mutable std::vector<ROOT::Fit::ParameterSettings> ///< Parameter settings. Mutable for DFTmethod and NumIntegration
       m_parSettings; ///< Could have been an array, but I'm doing this for compatibility with FitConfig
 
-   IModel() : m_parameters(m_maxParams), m_parSettings() {};
+   IModel() : m_parameters(m_maxParams) {};
 
    IModel(UInt_t npar, UInt_t nbins, Double_t wbin, Double_t xmin, Double_t xmax)
       : m_nBins(nbins),
@@ -136,6 +162,7 @@ protected:
         m_xMin(xmin),
         m_xMax(xmax),
         m_parameters(m_maxParams),
+        m_parErrors(m_maxParams),
         m_parSettings(npar)
    {
    }
@@ -147,6 +174,7 @@ protected:
         m_xMin(other.m_xMin),
         m_xMax(other.m_xMax),
         m_parameters(other.m_parameters),
+        m_parErrors(other.m_parErrors),
         m_parSettings(other.m_parSettings)
    {
    }

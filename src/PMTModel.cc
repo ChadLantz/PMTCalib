@@ -810,3 +810,23 @@ TGraph *PMTModel::GetGraphN2(Int_t n)
 
    return _gr;
 }
+
+Double_t PMTModel::Gain(const Double_t *pars) const
+{
+   Double_t Q = pars[4];
+   Double_t alpha = pars[6];
+   Double_t w = pars[7];
+   return w / alpha + (1.0 - w) * Q; // From PMTCalib example2
+}
+
+Double_t PMTModel::GainError(const Double_t *pars, const Double_t *errs) const
+{
+   Double_t Q = pars[4];
+   Double_t Qerr = errs[4];
+   Double_t alpha = pars[6];
+   Double_t alphaErr = errs[6];
+   Double_t w = pars[7];
+   Double_t wErr = errs[7];
+   return TMath::Sqrt(TMath::Power((1.0 - w) * Qerr, 2) + TMath::Power((Q - alpha) * wErr, 2) +
+                      TMath::Power(w / (alpha * alpha) * alphaErr, 2));
+}

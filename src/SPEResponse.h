@@ -13,7 +13,7 @@ public:
    SPEResponse(const SPEResponse &other);
    virtual SPEResponse *Clone() const override { return new SPEResponse(*this); }
    ~SPEResponse() = default;
-   
+
    void SetResponse(PMType::Response resp);
    Double_t gausexpfunc(Double_t x, const Double_t *par) const;
    Double_t gaus2expfunc(Double_t x, const Double_t *par) const;
@@ -22,6 +22,8 @@ public:
    Double_t weibullexpfunc(Double_t x, const Double_t *par) const;
    Double_t lognormalexpfunc(Double_t x, const Double_t *par) const;
    Double_t testfunc(Double_t x, const Double_t *par) const;
+   virtual Double_t Gain(const Double_t *pars) const override;
+   virtual Double_t GainError(const Double_t *pars, const Double_t *errs) const override;
    
 private:
    virtual Double_t DoEvalPar(Double_t x, const Double_t *p) const override;

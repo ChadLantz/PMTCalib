@@ -19,8 +19,13 @@ public:
 
    virtual void SetParameters(const Double_t *pars) override;
    void CalculateValues(const Double_t *pars) const;
-
    TGraph *GetGraph();
+   // These are probably unsafe
+   virtual Double_t Gain(const Double_t *pars) const override { return m_resp.Gain(&pars[4]); }
+   virtual Double_t GainError(const Double_t *pars, const Double_t *errs) const override
+   {
+      return m_resp.GainError(&pars[4], &errs[4]);
+   }
 
 private:
    virtual Double_t DoEvalPar(Double_t x, const Double_t *pars) const override;

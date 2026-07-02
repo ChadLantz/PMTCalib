@@ -98,10 +98,7 @@ Int_t example6()
    Info("example6.C", "Fit took %.0fms Real time and %.0fms CPU time", sw.RealTime() * 1000, sw.CpuTime() * 1000);
 
    // Calculate the gain and print the result
-   Double_t lambdaFit = fit->GetParameter(4);
-   Double_t alphaFit = fit->GetParameter(6);
-   Double_t wFit = fit->GetParameter(7);
-   Double_t Gfit = wFit / alphaFit + (1.0 - wFit) / lambdaFit;
+   Double_t Gfit = dft.Gain(fit->GetParameters());
    Info("example6.C", "\tTrue Gain : %.2f\n\tBF Gain   : %.2f\n\tDeviation : %.2f%%", Gtrue, Gfit,
         (Gfit / Gtrue - 1.0) * 100.0);
 

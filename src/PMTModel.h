@@ -21,6 +21,8 @@ public:
    Double_t TRUNCGAUSS(Double_t x, const Double_t *pars) const;
    Double_t ANATRUNCG(Double_t x, const Double_t *pars) const;
    Double_t EXPTRUNCG(Double_t x, const Double_t *pars) const;
+   virtual Double_t Gain(const Double_t *pars) const override;
+   virtual Double_t GainError(const Double_t *pars, const Double_t *errs) const override;
    
    TGraph *GetGraph();
    TGraph *GetGraphN(Int_t n);
