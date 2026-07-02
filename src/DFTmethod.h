@@ -14,6 +14,10 @@
 #include <vector>
 
 struct FFTWState {
+private:
+   Bool_t isInit{kFALSE}; ///< Is the state initialized
+
+public:
    size_t N{0};                  ///< number of time domain values
    size_t M{0};                  ///< number of frequency domain values
    std::vector<Double_t> wfinBG; ///< FFT Background input
@@ -25,8 +29,7 @@ struct FFTWState {
    fftw_plan FWfftBG;            ///< FFT Background
    fftw_plan FWfftSG;            ///< FFT Single photon response
    fftw_plan BWfft;              ///< IFFT of the convolution
-   TGraph *gr{nullptr};          ///< This state owns its graph and we will return clones
-   Bool_t isInit{kFALSE};        ///< Is the state initialized
+   TGraph gr;                    ///< TGraph as buffer to store x, y and extrapolate with Eval
 
    FFTWState() {};
 
@@ -37,9 +40,9 @@ struct FFTWState {
       N = 2 * nBins + 60;
       M = N / 2 + 1;
       Double_t step = (xmax - xmin) / Double_t(nBins);
-      gr = new TGraph(nBins);
-      for (UInt_t i = 0; i < nBins; ++i)
-         gr->SetPointX(i, xmin + i * step);
+      gr.Set(N);
+      for (UInt_t i = 0; i < N; ++i)
+         gr.SetPointX(i, xmin + i * step);
 
       wfinBG.resize(N);
       wfinSG.resize(N);
@@ -55,19 +58,14 @@ struct FFTWState {
 
    ~FFTWState()
    {
-      if (gr)
-         delete gr;
-
-      if (FWfftBG)
+      if (isInit) {
          fftw_destroy_plan(FWfftBG);
-      if (FWfftSG)
          fftw_destroy_plan(FWfftSG);
-      if (BWfft)
          fftw_destroy_plan(BWfft);
-
-      fftw_free(wfoutBG);
-      fftw_free(wfoutSG);
-      fftw_free(wfout);
+         fftw_free(wfoutBG);
+         fftw_free(wfoutSG);
+         fftw_free(wfout);
+      }
    }
 };
 
@@ -97,7 +95,6 @@ private:
    mutable UInt_t m_nCalls{0};
    mutable SPEResponse m_resp;
    mutable FFTWState fftwState;
-   TF1 *m_spefunc;
 };
 
 #endif
