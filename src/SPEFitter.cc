@@ -16,6 +16,7 @@
 #include "TH1.h"
 #include "TF1.h"
 #include <TMath.h>
+#include <ROOT/EExecutionPolicy.hxx>
 #include <RtypesCore.h>
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -119,7 +120,7 @@ ROOT::Fit::FitResult SPEFitter::HybridMinimize(IModel *model, TH1 *hspec, Int_t 
    fitter.Config().SetParamsSettings(model->ParamsSettings());
    fitter.Config().SetMinimizer("Genetic");
    fitter.Config().MinimizerOptions().SetMaxIterations(maxItersGA);
-   fitter.Fit(data);
+   fitter.Fit(data, ROOT::EExecutionPolicy::kMultiThread);
    // Feed the parameters back into the fitter
    for (UInt_t ipar = 0; ipar < model->NPar(); ++ipar)
       fitter.Config().ParSettings(ipar).SetValue(fitter.Result().Parameter(ipar));
@@ -127,7 +128,7 @@ ROOT::Fit::FitResult SPEFitter::HybridMinimize(IModel *model, TH1 *hspec, Int_t 
    fitter.Config().SetMinimizer("Minuit2", "Simplex");
    fitter.Config().MinimizerOptions().SetMaxIterations(maxItersSimplex);
    fitter.Config().MinimizerOptions().SetTolerance(tolSimplex);
-   fitter.Fit(data);
+   fitter.Fit(data, ROOT::EExecutionPolicy::kMultiThread);
    // Feed the parameters back into the fitter
    for (UInt_t ipar = 0; ipar < model->NPar(); ++ipar)
       fitter.Config().ParSettings(ipar).SetValue(fitter.Result().Parameter(ipar));
@@ -135,7 +136,7 @@ ROOT::Fit::FitResult SPEFitter::HybridMinimize(IModel *model, TH1 *hspec, Int_t 
    fitter.Config().SetMinimizer("Minuit2", "Migrad");
    fitter.Config().MinimizerOptions().SetMaxIterations(maxItersMigrad);
    fitter.Config().MinimizerOptions().SetTolerance(tolMigrad);
-   fitter.Fit(data);
+   fitter.Fit(data, ROOT::EExecutionPolicy::kMultiThread);
 
    // Set the model parameters with the fitted result
    model->SetFitResult(fitter.Result());
