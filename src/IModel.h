@@ -21,6 +21,15 @@ public:
    Double_t Gain() const { return Gain(Parameters()); } ;
    Double_t GainError() const { return GainError(Parameters(), Errors()); };
 
+
+   ////////////////////////////////////////////////////////////////////////////////
+   /// Set the parameter settings
+   virtual void SetChiSquare(Double_t chi2) { m_chi2 = chi2;}
+
+   ////////////////////////////////////////////////////////////////////////////////
+   /// Set the parameter settings
+   virtual void SetNDF(Double_t ndf) { m_ndf = ndf;}
+
    ////////////////////////////////////////////////////////////////////////////////
    /// Set the parameter settings
    virtual void SetParamsSettings(std::vector<ROOT::Fit::ParameterSettings> &settings) { m_parSettings = settings; }
@@ -118,6 +127,8 @@ public:
       // Call set parameters so the models can override
       SetParameters(result.Parameters().data());
       SetParErrors(result.Errors().data());
+      SetChiSquare(result.Chi2());
+      SetNDF(result.Ndf());
    }
 
    ////////////////////////////////////////////////////////////////////////////////
@@ -155,6 +166,14 @@ public:
       xmin = m_xMin;
       xmax = m_xMax;
    }
+
+   ////////////////////////////////////////////////////////////////////////////////
+   /// Get Chi2
+   virtual Double_t GetChiSquare() const { return m_chi2;}
+
+   ////////////////////////////////////////////////////////////////////////////////
+   /// Get NDF
+   virtual Double_t GetNDF() const { return m_ndf;}
 
 protected:
    // Constructor for shared metadata

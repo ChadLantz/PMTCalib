@@ -272,5 +272,7 @@ TF1 *SPEFitter::MakeTF1(IModel *model){
       fit->SetParLimits(ipar, par.LowerLimit(), par.UpperLimit());
       fit->SetParName(ipar, par.Name().c_str());
    }
+   fit->SetChisquare(model->GetChiSquare());
+   fit->SetNDF(model->GetNDF());
    return fit;
 }
