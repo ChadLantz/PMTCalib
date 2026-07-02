@@ -17,7 +17,7 @@ Int_t example4()
    Info("example4.C", "\n\tThe macro starts ...\n");
    gROOT->Reset();
    PMTStyle::SetDefaultStyle();
-   // ROOT::EnableImplicitMT();
+   ROOT::EnableImplicitMT();
 
    // Spectrum generation parameters
    Int_t nbins = 250;
@@ -63,12 +63,7 @@ Int_t example4()
         (Gfit / Gtrue - 1.0) * 100.0);
 
    // Display the result
-   Double_t fitXmin, fitXmax;
-   method->GetRange(fitXmin, fitXmax);
-   TF1 *displayFit = new TF1("dfTF1", method, fitXmin, fitXmax, method->NPar());
-   for(UInt_t ipar = 0; ipar < method->NPar(); ++ipar){
-      displayFit->SetParName(ipar, method->ParameterName(ipar).c_str());
-   }
+   TF1 *displayFit = fitter.MakeTF1(method); // Wrap the model in a TF1 with the helper
    displayFit->SetFitResult(result);
    displayFit->SetLineColor(kAzure + 1);
    result.Print(std::cout);
@@ -81,7 +76,7 @@ Int_t example4()
    TGraph *grPE[25];
    for (Int_t i = 0; i < 25; i++) {
       grPE[i] = method->GetGraphN(i);
-      grPE[i]->Draw("SAME,L");
+      grPE[i]->Draw("SAME L");
    }
    c1->Update();
    c1->WaitPrimitive();

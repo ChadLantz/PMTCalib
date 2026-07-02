@@ -4,6 +4,7 @@
 #include "PMType.h"
 #include "SPEFitter.h"
 
+#include "Rtypes.h"
 #include "TApplication.h"
 #include "TH1D.h"
 #include "TError.h"
@@ -43,6 +44,7 @@ Int_t example3()
    // Create the fitter/model. The fitter generates seeds from the histogram and
    // the given Pedestal mean and width which is gathered from dark current data
    SPEFitter fitter;
+   fitter.SetVerbose(1);
    DFTmethod *method = fitter.CreateDFTmethod(hSpec, PMType::Response::GAUSS, Q0, s0);
 
    // The model has been created and seeded.
@@ -61,10 +63,13 @@ Int_t example3()
         (Gfit / Gtrue - 1.0) * 100.0);
 
    // Display the result
+   TF1 *dfTF1 = fitter.MakeTF1(method);
+   dfTF1->SetLineColor(kAzure + 1);
    TCanvas *c1 = new TCanvas("c1", "");
    c1->cd();
    c1->SetLogy();
    hSpec->Draw("PEZ");
+   dfTF1->Draw("SAME L");
    TGraph *grPE[25]; // Show the components of the spectrum
    for (Int_t i = 0; i < 25; i++) {
       grPE[i] = method->GetGraphN(i);
