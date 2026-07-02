@@ -16,6 +16,7 @@
 #include "TH1.h"
 #include "TF1.h"
 #include <TMath.h>
+#include <RtypesCore.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Generate seeds used by all spectra fit by the PMTCalib library given the
@@ -29,40 +30,43 @@
 std::map<std::string, Double_t> SPEFitter::GenerateSeeds(TH1 *hspec, const Double_t Q0, const Double_t s0)
 {
    std::map<std::string, Double_t> seeds;
-   Double_t nTotal = hspec->Integral();
+   Double_t wbin = hspec->GetBinWidth(1);
    seeds["Q0"] = Q0;
    seeds["#sigma_{0}"] = s0;
    seeds["Q"] = hspec->GetMean();
-   seeds["Norm"] = hspec->GetBinContent(hspec->FindBin(seeds.at("Q")));
+   // Norm means different things depending on the method. DFT is integral normalized, PMTModel is Q0 peak normalized
+   seeds["pedHeight"] = hspec->GetBinContent(hspec->FindBin(Q0));
+   seeds["Norm"] = hspec->Integral();
    seeds["xMin"] = hspec->GetBinCenter(hspec->FindFirstBinAbove(2)); //< Assumes raw counts for now
    seeds["xMax"] = hspec->GetBinCenter(hspec->FindLastBinAbove(2));  //< ^^ same
 
    // If we have the resolution, fit the pedestal
-   if (2 * seeds["#sigma_{0}"] > hspec->GetBinWidth(1)) {
+   if (hspec->GetBinWidth(1) < 2.0 * s0) {
       // Fit the pedestal informed by the dark current fit
-      TF1 pedFit("ped", "gaus", seeds.at("Q0") - 2.0 * seeds.at("#sigma_{0}"),
-                 seeds.at("Q0") + 2.0 * seeds.at("#sigma_{0}"));
-      pedFit.SetParameters(0.5 * nTotal, seeds.at("Q0"), 7.5 * seeds.at("#sigma_{0}"));
-      pedFit.SetParLimits(0, 0.0, 1.2 * nTotal);
-      pedFit.SetParLimits(1, -2.0 * seeds.at("#sigma_{0}"), 2.0 * seeds.at("#sigma_{0}"));
-      pedFit.SetParLimits(1, 0.0, 15.0 * seeds.at("#sigma_{0}"));
+      TF1 pedFit("ped", "gausn", Q0 - 2.0 * s0, Q0 + 2.0 * s0);
+      pedFit.SetParameters(0.5 * wbin * (seeds.at("Norm") + seeds.at("pedHeight") ), Q0, s0);
+      pedFit.SetParLimits(0, wbin * seeds.at("pedHeight"), wbin * seeds.at("Norm"));
+      pedFit.SetParLimits(1, Q0 - s0, Q0 + s0);
+      pedFit.SetParLimits(2, 0.75 * s0 , 1.5 * s0);
       hspec->Fit(&pedFit, "RQ");
 
       // Adjust Q0 and sigma0 for this spectrum
+      seeds["pedPop"] = pedFit.GetParameter(0) / wbin;
       seeds["Q0"] = pedFit.GetParameter(1);
       seeds["#sigma_{0}"] = pedFit.GetParameter(2);
 
       // Provide an estimate for mu
-      seeds["#mu"] = TMath::Log(nTotal / pedFit.GetParameter(0));
+      seeds["#mu"] = TMath::Log(wbin * seeds.at("Norm") / pedFit.GetParameter(0));
    } else {
       Warning("GenerateSeeds", "binWidth is > 2 sigma0, cannot pre-fit pedestal");
       // Just use the pedestal bin count
-      seeds["#mu"] = TMath::Log(nTotal / hspec->GetBinContent(hspec->GetBin(seeds.at("Q0"))));
+      seeds["pedPop"] = seeds.at("pedHeight");
+      seeds["#mu"] = TMath::Log(seeds.at("Norm") / seeds.at("pedHeight"));
    }
 
    // Calculate gain and lambda
    seeds["gain"] = (seeds.at("Q") - seeds.at("Q0")) / seeds.at("#mu");
-   seeds["#lambda"] = 1.0 / seeds["gain"];
+   seeds["#lambda"] = 1.0 / seeds["Q"];
 
    // Fit the tail to seed alpha
    Double_t tailStart = std::max(3.0 * seeds.at("gain"), seeds.at("Q"));
@@ -134,7 +138,7 @@ ROOT::Fit::FitResult SPEFitter::HybridMinimize(IModel *model, TH1 *hspec, Int_t 
    fitter.Fit(data);
 
    // Set the model parameters with the fitted result
-   model->SetParameters(fitter.Result().Parameters().data());
+   model->SetFitResult(fitter.Result());
 
    return fitter.Result();
 }
@@ -153,11 +157,11 @@ NumIntegration *SPEFitter::CreateNumethod(TH1 *hspec, PMType::Response sper, Dou
    std::map<std::string, Double_t> seeds = GenerateSeeds(hspec, Q0, s0);
    std::map<std::string, std::pair<Double_t, Double_t>> limits;
 
-   limits["Norm"] = {0.1 * seeds.at("Norm"), 10.0 * hspec->GetMaximum()};
+   limits["Norm"] = {0.75 * seeds.at("Norm"), 1.25 * seeds.at("Norm") };
    limits["Q0"] = {seeds.at("Q0") - seeds.at("#sigma_{0}"), seeds.at("Q0") + seeds.at("#sigma_{0}")};
    limits["#sigma_{0}"] = {0.5 * seeds.at("#sigma_{0}"), 3.0 * seeds.at("#sigma_{0}")};
    limits["#mu"] = {0.02, 2.0 * seeds.at("#mu")};
-   limits["#lambda"] = {0.1 * seeds.at("#lambda"), 5.0 * seeds.at("#lambda")};
+   limits["#lambda"] = {0, 1.0};
    limits["#theta"] = {0.2 * seeds.at("#theta"), 5.0 * seeds.at("#theta")};
    limits["#kappa"] = {0.2 * seeds.at("#kappa"), 5.0 * seeds.at("#kappa")};
    limits["Q"] = {0.2 * seeds.at("Q"), 5.0 * seeds.at("Q")};
@@ -191,15 +195,16 @@ DFTmethod *SPEFitter::CreateDFTmethod(TH1 *hspec, PMType::Response sper, Double_
    std::map<std::string, Double_t> seeds = GenerateSeeds(hspec, Q0, s0);
    std::map<std::string, std::pair<Double_t, Double_t>> limits;
 
-   limits["Norm"] = {0.01 * seeds.at("Norm"), 3.0 * hspec->Integral()};
+   limits["Norm"] = {0.9 * seeds.at("Norm"), 1.1 * seeds.at("Norm")};
    limits["Q0"] = {seeds.at("Q0") - seeds.at("#sigma_{0}"), seeds.at("Q0") + seeds.at("#sigma_{0}")};
    limits["#sigma_{0}"] = {0.0, 3.0 * seeds.at("#sigma_{0}")};
    limits["#mu"] = {0.02, 2.0 * seeds.at("#mu")};
-   limits["#lambda"] = {0.0, 5.0 * seeds.at("#lambda")};
+   limits["#lambda"] = {0.0, 1.0};
    limits["#kappa"] = {0.0, 5.0 * seeds.at("#kappa")};
    limits["#theta"] = {0.0, 5.0 * seeds.at("#theta")};
-   limits["Q"] = {0.2 * seeds.at("Q"), 5.0 * seeds.at("Q")};
-   limits["#sigma"] = {seeds.at("#sigma_{0}"), 15.0 * seeds.at("#sigma_{0}")};
+   limits["Q"] = {0.8 * seeds.at("gain"), 1.2 * seeds.at("gain")};
+   limits["#lambda"] = {0.5 / seeds.at("Q"), 3.0 / seeds.at("Q")};
+   limits["#sigma"] = {seeds.at("#sigma_{0}"), 10.0 * seeds.at("#sigma_{0}")};
    limits["#alpha"] = limits["#alpha_{1}"] =
       limits["#alpha_{2}"] = {0.1 * seeds.at("#alpha"), 5.0 * seeds.at("#alpha")};
    limits["w"] = limits["w_{1}"] = limits["w_{2}"] = {0.01, 0.75};
@@ -228,23 +233,23 @@ PMTModel *SPEFitter::CreatePMTModel(TH1 *hspec, PMType::Model model, Double_t Q0
    std::map<std::string, Double_t> seeds = GenerateSeeds(hspec, Q0, s0);
    PMTModel *pmt = new PMTModel(hspec->GetNbinsX(), hspec->GetBinWidth(1), seeds.at("xMin"), seeds.at("xMax"), model);
 
-   pmt->ParSettings(0).SetValue(seeds.at("Norm"));
-   pmt->ParSettings(0).SetLimits(0.1 * seeds.at("Norm"), 10.0 * hspec->GetMaximum());
+   pmt->ParSettings(0).SetValue(0.1 * seeds.at("Norm")); 
+   pmt->ParSettings(0).SetLimits(0.05 * seeds.at("Norm"), 0.15 * seeds.at("Norm"));
 
    pmt->ParSettings(1).SetValue(seeds.at("Q0"));
    pmt->ParSettings(1).SetLimits(seeds.at("Q0") - seeds.at("#sigma_{0}"), seeds.at("Q0") + seeds.at("#sigma_{0}"));
 
    pmt->ParSettings(2).SetValue(seeds.at("#sigma_{0}"));
-   pmt->ParSettings(2).SetLimits(0.3 * seeds.at("#sigma_{0}"), 5.0 * seeds.at("#sigma_{0}"));
+   pmt->ParSettings(2).SetLimits(0.5 * seeds.at("#sigma_{0}"), 1.5 * seeds.at("#sigma_{0}"));
 
    pmt->ParSettings(3).SetValue(seeds.at("#mu"));
-   pmt->ParSettings(3).SetLimits(0.02, 2.0 * seeds.at("#mu"));
+   pmt->ParSettings(3).SetLimits(0.02, std::max(1.5 * seeds.at("#mu"), 1.0));
 
-   pmt->ParSettings(4).SetValue(seeds.at("Q"));
-   pmt->ParSettings(4).SetLimits(0.3 * seeds.at("Q"), 3.0 * seeds.at("Q"));
+   pmt->ParSettings(4).SetValue(seeds.at("gain"));
+   pmt->ParSettings(4).SetLimits(0.5 * seeds.at("gain"), 1.5 * seeds.at("gain"));
 
-   pmt->ParSettings(5).SetValue(7.5 * seeds.at("#sigma_{0}"));
-   pmt->ParSettings(5).SetLimits(seeds.at("#sigma_{0}"), 15.0 * seeds.at("#sigma_{0}"));
+   pmt->ParSettings(5).SetValue(2.0 * seeds.at("#sigma_{0}"));
+   pmt->ParSettings(5).SetLimits(seeds.at("#sigma_{0}"), 5.0 * seeds.at("#sigma_{0}"));
 
    pmt->ParSettings(6).SetValue(seeds.at("#alpha"));
    pmt->ParSettings(6).SetLimits(0.01 * seeds.at("#alpha"), 3.0 * seeds.at("#alpha"));
