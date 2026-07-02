@@ -74,6 +74,7 @@ struct FFTWState {
 class DFTmethod : public IModel {
 
 public:
+   DFTmethod(PMType::Response sper);
    DFTmethod(Int_t nbins, Double_t wbin, Double_t xmin, Double_t xmax, PMType::Response sper);
    DFTmethod(const DFTmethod &other);
    virtual DFTmethod *Clone() const override { return new DFTmethod(*this); }

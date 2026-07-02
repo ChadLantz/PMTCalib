@@ -21,6 +21,17 @@ storing real values in a TGraph for later lookup.
  */
 ////////////////////////////////////////////////////////////////////////////////
 
+////////////////////////////////////////////////////////////////////////////////
+/// Construct with a response type. This is the minimum to use Gain and
+/// GainError
+DFTmethod::DFTmethod(PMType::Response sper) : IModel(), m_resp(sper) 
+{
+   SetNpar(4 + m_resp.NPar());
+   SetParNames({"Norm", "Q0", "#sigma_{0}", "#mu"});
+   for (UInt_t par = 4; par < NPar(); ++par) {
+      ParSettings(par).SetName(m_resp.ParSettings(par - 4).Name());
+   }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 /// 
