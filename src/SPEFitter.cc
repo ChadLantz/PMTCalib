@@ -81,7 +81,7 @@ std::map<std::string, Double_t> SPEFitter::GenerateSeeds(TH1 *hspec, const Doubl
    if (m_verbose > 0) {
       Info("SPEFitter::GenerateSeeds", "Initial seeds:");
       for (auto [key, val] : seeds) {
-         Info("SPEFitter::GenerateSeeds", "\t%s\t: %.2e", key.c_str(), val);
+         Info("SPEFitter::GenerateSeeds", "\t%-12s\t: %.2e", key.c_str(), val);
       }
    }
 
