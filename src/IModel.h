@@ -3,6 +3,7 @@
 
 #include "RtypesCore.h"
 #include "Fit/ParameterSettings.h"
+#include "Fit/FitResult.h"
 #include "Math/IParamFunction.h"
 #include "TError.h"
 
@@ -14,7 +15,6 @@ public:
    virtual ~IModel() {}
 
    // Required interface
-   // Clone, NPar, Parameters, SetParameters, DoEvalPar
    virtual BaseFunc *Clone() const override = 0;
    virtual Double_t Gain(const Double_t *pars) const = 0;
    virtual Double_t GainError(const Double_t *pars, const Double_t *errs) const = 0;
@@ -98,7 +98,26 @@ public:
    {
       m_xMin = xmin;
       m_xMax = xmax;
-      m_step = ((xmax - xmin) / Double_t(m_nBins));
+      // m_step = ((xmax - xmin) / Double_t(m_nBins));
+   }
+
+   ////////////////////////////////////////////////////////////////////////////////
+   /// Set the result from the fit. Similar to TF1::SetFitResult, but I keep fewer
+   /// tools around
+   void SetFitResult(const ROOT::Fit::FitResult &result)
+   {
+      if (result.IsEmpty()) {
+         Warning("SetFitResult", "Empty Fit result - nothing is set in TF1");
+         return;
+      }
+      if (NPar() != result.NPar()) {
+         Error("SetFitResult", "Invalid Fit result passed - number of parameter is %d , different than IModel::GetNpar() = %d", NPar(), result.NPar());
+         return;
+      }
+   
+      // Call set parameters so the models can override
+      SetParameters(result.Parameters().data());
+      SetParErrors(result.Errors().data());
    }
 
    ////////////////////////////////////////////////////////////////////////////////
@@ -141,13 +160,15 @@ protected:
    // Constructor for shared metadata
    static const UInt_t m_maxParams{11};
    UInt_t m_nBins{0};
-   Double_t m_wBin;
+   Double_t m_wBin{0.0};
    Double_t m_step{0.0};
    Double_t m_xMin{0.0};
    Double_t m_xMax{0.0};
+   Double_t m_chi2{0.0};
+   Double_t m_ndf{0.0};
 
    /// A note on these two. IParametricFunctionOneDim demands a DoEval const method, but DFTmethod and NumIntegration
-   /// need to keep an internal buffer 
+   /// need to keep an internal buffer
    mutable std::vector<Double_t> m_parameters;       ///< Parameter values. Mutable for DFTmethod and NumIntegration
    std::vector<Double_t> m_parErrors;                ///< Parameter errors
    mutable std::vector<ROOT::Fit::ParameterSettings> ///< Parameter settings. Mutable for DFTmethod and NumIntegration
