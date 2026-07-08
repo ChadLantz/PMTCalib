@@ -15,12 +15,13 @@
 #include "Math/Minimizer.h"
 #include "TH1.h"
 #include "TF1.h"
-#include <TMath.h>
-#include <ROOT/EExecutionPolicy.hxx>
-#include <RtypesCore.h>
+#include "TMath.h"
+#include "ROOT/EExecutionPolicy.hxx"
+#include "RtypesCore.h"
+
 
 ////////////////////////////////////////////////////////////////////////////////
-/// Generate seeds used by all spectra fit by the PMTCalib library given the
+/// Generate seeds used by all methods in this library given the
 /// histogram to be fit amd the same PMT's dark current fit. Initially seeds
 /// pedestal location and width from the dark current fit, then re-fits the
 /// pedestal, re-seeding with the result. The mean photon count is estimated
@@ -31,21 +32,21 @@
 std::map<std::string, Double_t> SPEFitter::GenerateSeeds(TH1 *hspec, const Double_t Q0, const Double_t s0)
 {
    std::map<std::string, Double_t> seeds;
+   Double_t threshold = 0.5 * TMath::Sqrt2(); // Corresponds to 2 entries regardless of normalization
    Double_t wbin = hspec->GetBinWidth(1);
    seeds["Q0"] = Q0;
    seeds["#sigma_{0}"] = s0;
    seeds["Q"] = hspec->GetMean();
+   seeds["#lambda"] = 1.0 / seeds["Q"];
    // Norm means different things depending on the method. DFT is integral normalized, PMTModel is Q0 peak normalized
    seeds["pedHeight"] = hspec->GetBinContent(hspec->FindBin(Q0));
    seeds["Norm"] = hspec->Integral();
-   seeds["xMin"] = hspec->GetBinCenter(hspec->FindFirstBinAbove(2)); //< Assumes raw counts for now
-   seeds["xMax"] = hspec->GetBinCenter(hspec->FindLastBinAbove(2));  //< ^^ same
 
    // If we have the resolution, fit the pedestal
    if (hspec->GetBinWidth(1) < 2.0 * s0) {
       // Fit the pedestal informed by the dark current fit
       TF1 pedFit("ped", "gausn", Q0 - 2.0 * s0, Q0 + 2.0 * s0);
-      pedFit.SetParameters(0.5 * wbin * (seeds.at("Norm") + seeds.at("pedHeight") ), Q0, s0);
+      pedFit.SetParameters(0.5 * wbin * (seeds.at("Norm") + wbin * seeds.at("pedHeight") ), Q0, s0);
       pedFit.SetParLimits(0, wbin * seeds.at("pedHeight"), wbin * seeds.at("Norm"));
       pedFit.SetParLimits(1, Q0 - s0, Q0 + s0);
       pedFit.SetParLimits(2, 0.75 * s0 , 1.5 * s0);
@@ -65,14 +66,43 @@ std::map<std::string, Double_t> SPEFitter::GenerateSeeds(TH1 *hspec, const Doubl
       seeds["#mu"] = TMath::Log(seeds.at("Norm") / seeds.at("pedHeight"));
    }
 
-   // Calculate gain and lambda
+   // Calculate gain from the pedestal fit
    seeds["gain"] = (seeds.at("Q") - seeds.at("Q0")) / seeds.at("#mu");
-   seeds["#lambda"] = 1.0 / seeds["Q"];
 
-   // Fit the tail to seed alpha
-   Double_t tailStart = std::max(3.0 * seeds.at("gain"), seeds.at("Q"));
-   Double_t lnRise = TMath::Log(0.5 * hspec->GetBinContent(hspec->FindBin(tailStart)));
-   Double_t run = seeds.at("xMax") - tailStart;
+   // Some spectra won't have a pronounced peak and are just a shoulder on the pedestal, so use that initial value
+   Double_t pePeakMin = seeds.at("Q0") + 0.5 * seeds.at("#sigma_{0}");
+   seeds["PEpeakX"] = pePeakMin;
+   Double_t pePeakVal = hspec->GetBinContent(hspec->FindBin(pePeakMin));
+   // Find the first and last bins with relative error below sqrt2. Also locate the PE peak
+   for(UInt_t bin = 1; bin <= hspec->GetNbinsX(); ++bin) {
+      Double_t content = hspec->GetBinContent(bin);
+      Double_t error = hspec->GetBinError(bin);
+      Double_t binLowEdge = hspec->GetBinLowEdge(bin);
+      Double_t binCenter = hspec->GetBinCenter(bin);
+      Double_t binUpEdge = binLowEdge + wbin;
+      // fill xMin and xMax
+      if(content > 0.0 && error / content < threshold){
+         if (!seeds.contains("xMin")) {
+            seeds["xMin"] = binLowEdge;
+         }
+         seeds["xMax"] = binUpEdge;
+      }
+
+      // fill PEpeak with values beyond the pedestal
+      if(binCenter > pePeakMin && content > pePeakVal) {
+         seeds["PEpeakX"] = binCenter;
+         pePeakVal = content;
+      }
+   }
+   if(!seeds.contains("xMin") || !seeds.contains("xMax") || ((seeds.contains("xMin") && seeds.contains("xMax") && seeds["xMin"] >= seeds["xMax"]))) {
+      Error("GenerateSeeds", "Failed to find valid xMin and xMax for histogram %s", hspec->GetName());
+      seeds["xMin"] = hspec->GetXaxis()->GetXmin();
+      seeds["xMax"] = hspec->GetXaxis()->GetXmax();
+   }
+
+   // Calculate the slope of the tail (#alpha)
+   Double_t lnRise = TMath::Log(pePeakVal - hspec->GetBinContent(hspec->FindBin(seeds.at("xMax"))) );
+   Double_t run = seeds.at("xMax") - seeds.at("PEpeakX");
    seeds["#alpha"] = lnRise / run;
 
    seeds["w"] = 0.2;      // Fraction of PEs that miss the first dynode
@@ -88,6 +118,7 @@ std::map<std::string, Double_t> SPEFitter::GenerateSeeds(TH1 *hspec, const Doubl
 
    return seeds;
 }
+
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Three step minimization algorithm. Start with Genetic up to maxCallsGA, then
@@ -234,8 +265,8 @@ PMTModel *SPEFitter::CreatePMTModel(TH1 *hspec, PMType::Model model, Double_t Q0
    std::map<std::string, Double_t> seeds = GenerateSeeds(hspec, Q0, s0);
    PMTModel *pmt = new PMTModel(hspec->GetNbinsX(), hspec->GetBinWidth(1), seeds.at("xMin"), seeds.at("xMax"), model);
 
-   pmt->ParSettings(0).SetValue(0.1 * seeds.at("Norm")); 
-   pmt->ParSettings(0).SetLimits(0.05 * seeds.at("Norm"), 0.15 * seeds.at("Norm"));
+   pmt->ParSettings(0).SetValue( seeds.at("Norm") ); 
+   pmt->ParSettings(0).SetLimits(0.5 * seeds.at("Norm"), 1.5 * seeds.at("Norm"));
 
    pmt->ParSettings(1).SetValue(seeds.at("Q0"));
    pmt->ParSettings(1).SetLimits(seeds.at("Q0") - seeds.at("#sigma_{0}"), seeds.at("Q0") + seeds.at("#sigma_{0}"));
@@ -247,7 +278,7 @@ PMTModel *SPEFitter::CreatePMTModel(TH1 *hspec, PMType::Model model, Double_t Q0
    pmt->ParSettings(3).SetLimits(0.02, std::max(1.5 * seeds.at("#mu"), 1.0));
 
    pmt->ParSettings(4).SetValue(seeds.at("gain"));
-   pmt->ParSettings(4).SetLimits(0.5 * seeds.at("gain"), 1.5 * seeds.at("gain"));
+   pmt->ParSettings(4).SetLimits(0.3 * seeds.at("gain"), 1.5 * seeds.at("gain"));
 
    pmt->ParSettings(5).SetValue(2.0 * seeds.at("#sigma_{0}"));
    pmt->ParSettings(5).SetLimits(seeds.at("#sigma_{0}"), 5.0 * seeds.at("#sigma_{0}"));
