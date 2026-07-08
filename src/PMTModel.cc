@@ -8,7 +8,7 @@
 #include <vector>
 
 PMTModel::PMTModel(Int_t nbins, Double_t wbin, Double_t xmin, Double_t xmax, PMType::Model modtype)
-   : IModel(8, wbin, nbins, xmin, xmax), m_modtype(modtype)
+   : IModel(8, nbins, wbin, xmin, xmax), m_modtype(modtype)
 {
    SetParNames({"Norm", "Q_{0}", "#sigma_{0}", "#mu", "Q", "#sigma", "#alpha", "w"});
 }
