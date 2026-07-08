@@ -6,7 +6,6 @@
 
 #include "RtypesCore.h"
 #include "SPEResponse.h"
-#include "TObject.h"
 #include "TGraph.h"
 
 #include <fftw3.h>
