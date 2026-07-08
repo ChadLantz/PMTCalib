@@ -321,7 +321,7 @@ Double_t PMTModel::EXPTRUNCG(Double_t x, const Double_t *pars) const
    result += TMath::Poisson(0, mu) * TMath::Gaus(x, Q0, s0, kTRUE); // n = 0
 
    Double_t omega0 = (x - Q0 - alpha * TMath::Sq(s0)) * 0.5 * TMath::Sqrt2() / s0;
-   Double_t SR1 = 0.25 * w * alpha * TMath::Exp(TMath::Sq(alpha * s0) - alpha * (x - Q0)) * TMath::Erfc(-omega0);
+   Double_t SR1 = 0.5 * w * alpha * TMath::Exp(0.5 * TMath::Sq(alpha * s0) - alpha * (x - Q0)) * TMath::Erfc(-omega0);
 
    Double_t Q1 = Q0 + Q;
    Double_t s1 = TMath::Hypot(s0, s);
