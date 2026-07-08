@@ -353,7 +353,7 @@ Double_t PMTModel::EXPTRUNCG(Double_t x, const Double_t *pars) const
                                                  2.0 / TMath::Sqrt(TMath::Pi()) * bm(m, omega) * TMath::Exp(-psi2));
 
          Double_t hmnB = cmn * Imn;
-         SRn += TMath::Binomial(n, m) * pow(w, m) * pow(1.0 - w, n - m) * hmnB;
+         SRn += TMath::Binomial(n, m) * TMath::Power(w, m) * TMath::Power(1.0 - w, n - m) * hmnB;
       }
 
       SRn *= TMath::Poisson(n, mu);
