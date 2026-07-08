@@ -323,13 +323,7 @@ Double_t PMTModel::EXPTRUNCG(Double_t x, const Double_t *pars) const
    Double_t omega0 = (x - Q0 - alpha * TMath::Sq(s0)) * 0.5 * TMath::Sqrt2() / s0;
    Double_t SR1 = 0.5 * w * alpha * TMath::Exp(0.5 * TMath::Sq(alpha * s0) - alpha * (x - Q0)) * TMath::Erfc(-omega0);
 
-   Double_t Q1 = Q0 + Q;
    Double_t s1 = TMath::Hypot(s0, s);
-
-   Double_t arg1 = 0.0;
-   if (s1 != 0.0)
-      arg1 = (x - Q1) / s1;
-
    Double_t gn = 0.5 * TMath::Erfc(-Q / (TMath::Sqrt2() * s));
    Double_t A = (Q0 - x) * TMath::Sq(s) - Q * TMath::Sq(s0);
    Double_t B = TMath::Sqrt2() * s0 * s * s1;
