@@ -17,7 +17,9 @@
 #include "TF1.h"
 #include "TMath.h"
 #include "ROOT/EExecutionPolicy.hxx"
+#include <memory>
 #include "RtypesCore.h"
+#include "TFitResult.h"
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -133,7 +135,7 @@ std::map<std::string, Double_t> SPEFitter::GenerateSeeds(TH1 *hspec, const Doubl
 /// @param tolSimplex Simplex algorithm minimization tolerance
 /// @param tolMigrad Migrad algorithm minimization tolerance
 /// @return Fit result pointer containing the results of the Migrad minimization
-ROOT::Fit::FitResult SPEFitter::HybridMinimize(IModel *model, TH1 *hspec, Int_t maxItersGA, Int_t maxItersSimplex,
+TFitResultPtr SPEFitter::HybridMinimize(IModel *model, TH1 *hspec, Int_t maxItersGA, Int_t maxItersSimplex,
                                                Int_t maxItersMigrad, Double_t tolSimplex, Double_t tolMigrad)
 {
    // Construct the BinData object with options and range
@@ -171,8 +173,7 @@ ROOT::Fit::FitResult SPEFitter::HybridMinimize(IModel *model, TH1 *hspec, Int_t 
 
    // Set the model parameters with the fitted result
    model->SetFitResult(fitter.Result());
-
-   return fitter.Result();
+   return TFitResultPtr(std::make_shared<TFitResult>(fitter.Result()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
