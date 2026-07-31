@@ -20,6 +20,7 @@
 #include <memory>
 #include "RtypesCore.h"
 #include "TFitResult.h"
+#include <TFitResultPtr.h>
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -46,21 +47,14 @@ std::map<std::string, Double_t> SPEFitter::GenerateSeeds(TH1 *hspec, const Doubl
 
    // If we have the resolution, fit the pedestal
    if (hspec->GetBinWidth(1) < 2.0 * s0) {
-      // Fit the pedestal informed by the dark current fit
-      TF1 pedFit("ped", "gausn", Q0 - 2.0 * s0, Q0 + 2.0 * s0);
-      pedFit.SetParameters(0.5 * wbin * (seeds.at("Norm") + wbin * seeds.at("pedHeight") ), Q0, s0);
-      pedFit.SetParLimits(0, wbin * seeds.at("pedHeight"), wbin * seeds.at("Norm"));
-      pedFit.SetParLimits(1, Q0 - s0, Q0 + s0);
-      pedFit.SetParLimits(2, 0.75 * s0 , 1.5 * s0);
-      hspec->Fit(&pedFit, "RQ");
-
+      TFitResultPtr result = hspec->Fit("gausn", "LRQS", "", Q0 - 2.0 * s0, Q0 + 2.0 * s0);
       // Adjust Q0 and sigma0 for this spectrum
-      seeds["pedPop"] = pedFit.GetParameter(0) / wbin;
-      seeds["Q0"] = pedFit.GetParameter(1);
-      seeds["#sigma_{0}"] = pedFit.GetParameter(2);
+      seeds["pedPop"] = result->Parameter(0) / wbin;
+      seeds["Q0"] = result->Parameter(1);
+      seeds["#sigma_{0}"] = result->Parameter(2);
 
       // Provide an estimate for mu
-      seeds["#mu"] = TMath::Log(wbin * seeds.at("Norm") / pedFit.GetParameter(0));
+      seeds["#mu"] = TMath::Log(wbin * seeds.at("Norm") / result->Parameter(0));
    } else {
       Warning("GenerateSeeds", "binWidth is > 2 sigma0, cannot pre-fit pedestal");
       // Just use the pedestal bin count
