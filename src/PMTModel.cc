@@ -147,7 +147,7 @@ Double_t PMTModel::bm(const Int_t m, const Double_t o) const
    return b;
 }
 
-Double_t PMTModel::DoEvalPar(Double_t x, const Double_t *p) const
+Double_t PMTModel::DoEvalPar(const Double_t x, const Double_t *p) const
 {
    switch (m_modtype) {
    case PMType::Model::SIMPLEGAUSS: return SIMPLEGAUSS(x, p);

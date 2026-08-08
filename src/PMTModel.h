@@ -31,7 +31,7 @@ public:
 private:
    Int_t m_nlim = 10; ///< TODO:: figure out what this is
    Int_t m_nlim2 = 10; ///< 
-   virtual Double_t DoEvalPar(Double_t x, const Double_t *p) const override;
+   virtual Double_t DoEvalPar(const Double_t x, const Double_t *p) const override;
    PMType::Model m_modtype{PMType::Model::EXPTRUNCG};
 };
 

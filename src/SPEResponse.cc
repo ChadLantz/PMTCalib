@@ -303,7 +303,7 @@ Double_t SPEResponse::GainError(const Double_t *pars, const Double_t *errs) cons
 
 ////////////////////////////////////////////////////////////////////////////////
 ///
-Double_t SPEResponse::DoEvalPar(Double_t x, const Double_t *pars) const
+Double_t SPEResponse::DoEvalPar(const Double_t x, const Double_t *pars) const
 {
    Double_t retVal = 0.0;
    switch (m_resp) {

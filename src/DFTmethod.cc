@@ -69,7 +69,7 @@ void DFTmethod::CalculateValues(const Double_t *pars) const
    for (UInt_t i = 0; i < fftwState.N; i++) {
       Double_t x = fftwState.gr.GetPointX(i);
       fftwState.wfinBG[i] = TMath::Gaus(x, Q0, s0, kTRUE);
-      fftwState.wfinSG[i] = m_resp(x, &pars[4]);
+      fftwState.wfinSG[i] = m_resp(&x, &pars[4]);
    }
 
    fftw_execute(fftwState.FWfftBG);
@@ -111,7 +111,7 @@ void DFTmethod::SetParameters(const Double_t *pars)
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Evaluate the model with the given parameters
-Double_t DFTmethod::DoEvalPar(Double_t x, const Double_t *pars) const
+Double_t DFTmethod::DoEvalPar(const Double_t x, const Double_t *pars) const
 {
    Bool_t parsChanged = kFALSE;
    for (UInt_t ipar = 0; ipar < NPar(); ++ipar) {
@@ -159,7 +159,7 @@ TGraph *DFTmethod::GetGraphN(Int_t n)
    for (UInt_t i = 0; i < fftwState.N; i++) {
       Double_t x = fftwState.gr.GetPointX(i);
       fftwState.wfinBG[i] = TMath::Gaus(x, Q0, s0, kTRUE);
-      fftwState.wfinSG[i] = m_resp(x, &m_parameters[4]);
+      fftwState.wfinSG[i] = m_resp(&x, &m_parameters[4]);
    }
 
    fftw_execute(fftwState.FWfftBG);

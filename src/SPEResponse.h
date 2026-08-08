@@ -26,7 +26,7 @@ public:
    virtual Double_t GainError(const Double_t *pars, const Double_t *errs) const override;
    
 private:
-   virtual Double_t DoEvalPar(Double_t x, const Double_t *p) const override;
+   virtual Double_t DoEvalPar(const Double_t x, const Double_t *p) const override;
    PMType::Response m_resp;
 };
 

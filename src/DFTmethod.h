@@ -88,7 +88,7 @@ public:
    }
 
 private:
-   virtual Double_t DoEvalPar(Double_t x, const Double_t *pars) const override;
+   virtual Double_t DoEvalPar(const Double_t x, const Double_t *pars) const override;
    void CalculateValues(const Double_t *pars) const;
 
    mutable UInt_t m_nCalls{0};

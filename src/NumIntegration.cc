@@ -68,7 +68,7 @@ void NumIntegration::CalculateValues(const Double_t *pars) const
 
       for (UInt_t j = 0; j < nds; j++) {
          Double_t tt = x_lo + j * ds;
-         Double_t xt = xx - tt;
+         const Double_t xt = xx - tt;
 
          Double_t arg = 0.0;
          if (s0 != 0.0)
@@ -78,7 +78,7 @@ void NumIntegration::CalculateValues(const Double_t *pars) const
          Double_t yy0 = 1.0 / (sqrt(2.0 * TMath::Pi()) * s0) * TMath::Exp(-0.5 * arg * arg);
 
          if (xt >= 0.0)
-            SR1 += yy0 * m_resp(xt, &pars[4]) * ds;
+            SR1 += yy0 * m_resp(&xt, &pars[4]) * ds;
       }
 
       SR1 *= TMath::Poisson(1, mu);
@@ -131,7 +131,7 @@ void NumIntegration::SetParameters(const Double_t *pars)
    }
 }
 
-Double_t NumIntegration::DoEvalPar(Double_t x, const Double_t *pars) const
+Double_t NumIntegration::DoEvalPar(const Double_t x, const Double_t *pars) const
 {
    Bool_t parsChanged = kFALSE;
    for (UInt_t ipar = 0; ipar < NPar(); ++ipar) {

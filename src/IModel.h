@@ -11,24 +11,26 @@
 
 class IModel : public ROOT::Math::IParametricFunctionOneDim {
 public:
-   using BaseFunc = IBaseFunctionOneDim;
    virtual ~IModel() {}
 
+   virtual Double_t EvalPar(const Double_t *x, const Double_t *p) const { return DoEvalPar(x[0], p); }
+
    // Required interface
-   virtual BaseFunc *Clone() const override = 0;
    virtual Double_t Gain(const Double_t *pars) const = 0;
    virtual Double_t GainError(const Double_t *pars, const Double_t *errs) const = 0;
-   Double_t Gain() const { return Gain(Parameters()); } ;
-   Double_t GainError() const { return GainError(Parameters(), Errors()); };
 
+   ////////////////////////////////////////////////////////////////////////////////
+   /// Common gain and gain error using member parameters
+   inline Double_t Gain() const { return Gain(Parameters()); };
+   inline Double_t GainError() const { return GainError(Parameters(), Errors()); };
 
    ////////////////////////////////////////////////////////////////////////////////
    /// Set the parameter settings
-   virtual void SetChiSquare(Double_t chi2) { m_chi2 = chi2;}
+   virtual void SetChiSquare(Double_t chi2) { m_chi2 = chi2; }
 
    ////////////////////////////////////////////////////////////////////////////////
    /// Set the parameter settings
-   virtual void SetNDF(Double_t ndf) { m_ndf = ndf;}
+   virtual void SetNDF(Double_t ndf) { m_ndf = ndf; }
 
    ////////////////////////////////////////////////////////////////////////////////
    /// Set the parameter settings
@@ -107,7 +109,6 @@ public:
    {
       m_xMin = xmin;
       m_xMax = xmax;
-      // m_step = ((xmax - xmin) / Double_t(m_nBins));
    }
 
    ////////////////////////////////////////////////////////////////////////////////
@@ -120,10 +121,12 @@ public:
          return;
       }
       if (NPar() != result.NPar()) {
-         Error("SetFitResult", "Invalid Fit result passed - number of parameter is %d , different than IModel::GetNpar() = %d", NPar(), result.NPar());
+         Error("SetFitResult",
+               "Invalid Fit result passed - number of parameter is %d , different than IModel::GetNpar() = %d", NPar(),
+               result.NPar());
          return;
       }
-   
+
       // Call set parameters so the models can override
       SetParameters(result.Parameters().data());
       SetParErrors(result.Errors().data());
@@ -169,11 +172,11 @@ public:
 
    ////////////////////////////////////////////////////////////////////////////////
    /// Get Chi2
-   virtual Double_t GetChiSquare() const { return m_chi2;}
+   virtual Double_t GetChiSquare() const { return m_chi2; }
 
    ////////////////////////////////////////////////////////////////////////////////
    /// Get NDF
-   virtual Double_t GetNDF() const { return m_ndf;}
+   virtual Double_t GetNDF() const { return m_ndf; }
 
 protected:
    // Constructor for shared metadata
@@ -220,7 +223,7 @@ protected:
    }
 
 private:
-   virtual Double_t DoEvalPar(Double_t x, const Double_t *p) const override = 0;
+   virtual Double_t DoEvalPar(const Double_t x, const Double_t *p) const override = 0;
 };
 
 #endif
