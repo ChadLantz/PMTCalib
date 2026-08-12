@@ -3,9 +3,11 @@
 
 #include "RtypesCore.h"
 #include "Fit/ParameterSettings.h"
-#include "Fit/FitResult.h"
+#include "TFitResult.h"
+#include "TFitResultPtr.h"
 #include "Math/IParamFunction.h"
 #include "TError.h"
+#include <TFitResultPtr.h>
 
 #include <vector>
 
@@ -114,24 +116,24 @@ public:
    ////////////////////////////////////////////////////////////////////////////////
    /// Set the result from the fit. Similar to TF1::SetFitResult, but I keep fewer
    /// tools around
-   void SetFitResult(const ROOT::Fit::FitResult &result)
+   void SetFitResult(const TFitResultPtr result)
    {
-      if (result.IsEmpty()) {
+      if (result->IsEmpty()) {
          Warning("SetFitResult", "Empty Fit result - nothing is set in TF1");
          return;
       }
-      if (NPar() != result.NPar()) {
+      if (NPar() != result->NPar()) {
          Error("SetFitResult",
                "Invalid Fit result passed - number of parameter is %d , different than IModel::GetNpar() = %d", NPar(),
-               result.NPar());
+               result->NPar());
          return;
       }
 
       // Call set parameters so the models can override
-      SetParameters(result.Parameters().data());
-      SetParErrors(result.Errors().data());
-      SetChiSquare(result.Chi2());
-      SetNDF(result.Ndf());
+      SetParameters(result->Parameters().data());
+      SetParErrors(result->Errors().data());
+      SetChiSquare(result->Chi2());
+      SetNDF(result->Ndf());
    }
 
    ////////////////////////////////////////////////////////////////////////////////

@@ -22,7 +22,6 @@
 #include "TFitResult.h"
 #include <TFitResultPtr.h>
 
-
 ////////////////////////////////////////////////////////////////////////////////
 /// Generate seeds used by all methods in this library given the
 /// histogram to be fit amd the same PMT's dark current fit. Initially seeds
@@ -70,7 +69,7 @@ std::map<std::string, Double_t> SPEFitter::GenerateSeeds(TH1 *hspec, const Doubl
    seeds["PEpeakX"] = pePeakMin;
    Double_t pePeakVal = hspec->GetBinContent(hspec->FindBin(pePeakMin));
    // Find the first and last bins with relative error below sqrt2. Also locate the PE peak
-   for(UInt_t bin = 1; bin <= hspec->GetNbinsX(); ++bin) {
+   for (UInt_t bin = 1; bin <= hspec->GetNbinsX(); ++bin) {
       Double_t content = hspec->GetBinContent(bin);
       Double_t error = hspec->GetBinError(bin);
       Double_t binLowEdge = hspec->GetBinLowEdge(bin);
@@ -85,19 +84,20 @@ std::map<std::string, Double_t> SPEFitter::GenerateSeeds(TH1 *hspec, const Doubl
       }
 
       // fill PEpeak with values beyond the pedestal
-      if(binCenter > pePeakMin && content > pePeakVal) {
+      if (binCenter > pePeakMin && content > pePeakVal) {
          seeds["PEpeakX"] = binCenter;
          pePeakVal = content;
       }
    }
-   if(!seeds.contains("xMin") || !seeds.contains("xMax") || ((seeds.contains("xMin") && seeds.contains("xMax") && seeds["xMin"] >= seeds["xMax"]))) {
+   if (!seeds.contains("xMin") || !seeds.contains("xMax") ||
+       ((seeds.contains("xMin") && seeds.contains("xMax") && seeds["xMin"] >= seeds["xMax"]))) {
       Error("GenerateSeeds", "Failed to find valid xMin and xMax for histogram %s", hspec->GetName());
       seeds["xMin"] = hspec->GetXaxis()->GetXmin();
       seeds["xMax"] = hspec->GetXaxis()->GetXmax();
    }
 
    // Calculate the slope of the tail (#alpha)
-   Double_t lnRise = TMath::Log(pePeakVal - hspec->GetBinContent(hspec->FindBin(seeds.at("xMax"))) );
+   Double_t lnRise = TMath::Log(pePeakVal - hspec->GetBinContent(hspec->FindBin(seeds.at("xMax"))));
    Double_t run = seeds.at("xMax") - seeds.at("PEpeakX");
    seeds["#alpha"] = lnRise / run;
 
@@ -115,7 +115,6 @@ std::map<std::string, Double_t> SPEFitter::GenerateSeeds(TH1 *hspec, const Doubl
    return seeds;
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 /// Three step minimization algorithm. Start with Genetic up to maxCallsGA, then
 /// pass the result to Minuit2 Simplex up to maxCallsLocal, before finally
@@ -130,7 +129,7 @@ std::map<std::string, Double_t> SPEFitter::GenerateSeeds(TH1 *hspec, const Doubl
 /// @param tolMigrad Migrad algorithm minimization tolerance
 /// @return Fit result pointer containing the results of the Migrad minimization
 TFitResultPtr SPEFitter::HybridMinimize(IModel *model, TH1 *hspec, Int_t maxItersGA, Int_t maxItersSimplex,
-                                               Int_t maxItersMigrad, Double_t tolSimplex, Double_t tolMigrad)
+                                        Int_t maxItersMigrad, Double_t tolSimplex, Double_t tolMigrad)
 {
    // Construct the BinData object with options and range
    Double_t xmin = 0.0, xmax = 0.0;
@@ -165,9 +164,11 @@ TFitResultPtr SPEFitter::HybridMinimize(IModel *model, TH1 *hspec, Int_t maxIter
    fitter.Config().MinimizerOptions().SetTolerance(tolMigrad);
    fitter.Fit(data, ROOT::EExecutionPolicy::kMultiThread);
 
+   // Create a shared pointer to the result (copy)
+   TFitResultPtr result(std::make_shared<TFitResult>(fitter.Result()));
    // Set the model parameters with the fitted result
-   model->SetFitResult(fitter.Result());
-   return TFitResultPtr(std::make_shared<TFitResult>(fitter.Result()));
+   model->SetFitResult(result);
+   return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
