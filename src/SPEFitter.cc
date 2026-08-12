@@ -30,11 +30,13 @@
 /// by assuming P(0) = e^{-lambda} (Poisson distributed).
 ///
 /// @param histo Histogram containing the low-light PMT spectrum
-/// @param dcFit Gaussian fit to the dark current spectrum of the given PMT
-std::map<std::string, Double_t> SPEFitter::GenerateSeeds(TH1 *hspec, const Double_t Q0, const Double_t s0)
+/// @param Q0 Estimated pedistal position
+/// @param s0 Esitmated pedistal width
+/// @param errTol Maximum bin error for selecting bin range
+std::map<std::string, Double_t>
+SPEFitter::GenerateSeeds(TH1 *hspec, const Double_t Q0, const Double_t s0, const Double_t errTol)
 {
    std::map<std::string, Double_t> seeds;
-   Double_t threshold = 0.5 * TMath::Sqrt2(); // Corresponds to 2 entries regardless of normalization
    Double_t wbin = hspec->GetBinWidth(1);
    seeds["Q0"] = Q0;
    seeds["#sigma_{0}"] = s0;
@@ -76,7 +78,7 @@ std::map<std::string, Double_t> SPEFitter::GenerateSeeds(TH1 *hspec, const Doubl
       Double_t binCenter = hspec->GetBinCenter(bin);
       Double_t binUpEdge = binLowEdge + wbin;
       // fill xMin and xMax
-      if(content > 0.0 && error / content < threshold){
+      if (content > 0.0 && error / content < errTol) {
          if (!seeds.contains("xMin")) {
             seeds["xMin"] = binLowEdge;
          }
@@ -180,12 +182,13 @@ TFitResultPtr SPEFitter::HybridMinimize(IModel *model, TH1 *hspec, Int_t maxIter
 /// @param Q0 Pedestal mean (usually from dark current data)
 /// @param s0 Pedestal width (usually from dark current data)
 /// @return ROOT::Fit::FitResult containing fit results
-NumIntegration *SPEFitter::CreateNumethod(TH1 *hspec, PMType::Response sper, Double_t Q0, Double_t s0)
+NumIntegration *
+SPEFitter::CreateNumethod(TH1 *hspec, PMType::Response sper, Double_t Q0, Double_t s0, const Double_t errTol)
 {
-   std::map<std::string, Double_t> seeds = GenerateSeeds(hspec, Q0, s0);
+   std::map<std::string, Double_t> seeds = GenerateSeeds(hspec, Q0, s0, errTol);
    std::map<std::string, std::pair<Double_t, Double_t>> limits;
 
-   limits["Norm"] = {0.75 * seeds.at("Norm"), 1.25 * seeds.at("Norm") };
+   limits["Norm"] = {0.75 * seeds.at("Norm"), 1.25 * seeds.at("Norm")};
    limits["Q0"] = {seeds.at("Q0") - seeds.at("#sigma_{0}"), seeds.at("Q0") + seeds.at("#sigma_{0}")};
    limits["#sigma_{0}"] = {0.5 * seeds.at("#sigma_{0}"), 3.0 * seeds.at("#sigma_{0}")};
    limits["#mu"] = {0.02, 2.0 * seeds.at("#mu")};
@@ -198,8 +201,11 @@ NumIntegration *SPEFitter::CreateNumethod(TH1 *hspec, PMType::Response sper, Dou
       limits["#alpha_{2}"] = {0.1 * seeds.at("#alpha"), 5.0 * seeds.at("#alpha")};
    limits["w"] = limits["w_{1}"] = limits["w_{2}"] = {0.01, 0.75};
 
-   NumIntegration *num =
-      new NumIntegration(hspec->GetNbinsX(), hspec->GetBinWidth(1), seeds.at("xMin"), seeds.at("xMax"), sper);
+   Int_t minBin = hspec->GetBin(seeds.at("xMin"));
+   Int_t maxBin = hspec->GetBin(seeds.at("xMax"));
+   UInt_t nBins = maxBin - minBin;
+   NumIntegration *num = new NumIntegration(nBins, hspec->GetBinWidth(minBin), hspec->GetBinLowEdge(minBin),
+                                            hspec->GetBinLowEdge(maxBin) + hspec->GetBinWidth(maxBin), sper);
    for (UInt_t ipar = 0; ipar < num->NPar(); ++ipar) {
       std::string parName = num->ParSettings(ipar).Name();
       num->ParSettings(ipar).SetValue(seeds.at(parName));
@@ -218,9 +224,10 @@ NumIntegration *SPEFitter::CreateNumethod(TH1 *hspec, PMType::Response sper, Dou
 /// @param Q0 Pedestal mean (usually from dark current data)
 /// @param s0 Pedestal width (usually from dark current data)
 /// @return ROOT::Fit::FitResult containing fit results
-DFTmethod *SPEFitter::CreateDFTmethod(TH1 *hspec, PMType::Response sper, Double_t Q0, Double_t s0)
+DFTmethod *
+SPEFitter::CreateDFTmethod(TH1 *hspec, PMType::Response sper, Double_t Q0, Double_t s0, const Double_t errTol)
 {
-   std::map<std::string, Double_t> seeds = GenerateSeeds(hspec, Q0, s0);
+   std::map<std::string, Double_t> seeds = GenerateSeeds(hspec, Q0, s0, errTol);
    std::map<std::string, std::pair<Double_t, Double_t>> limits;
 
    limits["Norm"] = {0.9 * seeds.at("Norm"), 1.1 * seeds.at("Norm")};
@@ -238,7 +245,11 @@ DFTmethod *SPEFitter::CreateDFTmethod(TH1 *hspec, PMType::Response sper, Double_
    limits["w"] = limits["w_{1}"] = limits["w_{2}"] = {0.01, 0.75};
    seeds["#sigma"] = 3.0 * seeds.at("#sigma_{0}");
 
-   DFTmethod *dft = new DFTmethod(hspec->GetNbinsX(), hspec->GetBinWidth(1), seeds.at("xMin"), seeds.at("xMax"), sper);
+   Int_t minBin = hspec->GetBin(seeds.at("xMin"));
+   Int_t maxBin = hspec->GetBin(seeds.at("xMax"));
+   UInt_t nBins = maxBin - minBin;
+   DFTmethod *dft = new DFTmethod(nBins, hspec->GetBinWidth(minBin), hspec->GetBinLowEdge(minBin),
+                                  hspec->GetBinLowEdge(maxBin) + hspec->GetBinWidth(maxBin), sper);
    for (UInt_t ipar = 0; ipar < dft->NPar(); ++ipar) {
       std::string parName = dft->ParSettings(ipar).Name();
       dft->ParSettings(ipar).SetValue(seeds.at(parName));
@@ -256,31 +267,35 @@ DFTmethod *SPEFitter::CreateDFTmethod(TH1 *hspec, PMType::Response sper, Double_
 /// @param Q0 Pedestal mean (usually from dark current data)
 /// @param s0 Pedestal width (usually from dark current data)
 /// @return ROOT::Fit::FitResult containing fit results
-PMTModel *SPEFitter::CreatePMTModel(TH1 *hspec, PMType::Model model, Double_t Q0, Double_t s0)
+PMTModel *SPEFitter::CreatePMTModel(TH1 *hspec, PMType::Model model, Double_t Q0, Double_t s0, const Double_t errTol)
 {
-   std::map<std::string, Double_t> seeds = GenerateSeeds(hspec, Q0, s0);
-   PMTModel *pmt = new PMTModel(hspec->GetNbinsX(), hspec->GetBinWidth(1), seeds.at("xMin"), seeds.at("xMax"), model);
+   std::map<std::string, Double_t> seeds = GenerateSeeds(hspec, Q0, s0, errTol);
+   Int_t minBin = hspec->GetBin(seeds.at("xMin"));
+   Int_t maxBin = hspec->GetBin(seeds.at("xMax"));
+   UInt_t nBins = maxBin - minBin;
+   PMTModel *pmt = new PMTModel(nBins, hspec->GetBinWidth(minBin), hspec->GetBinLowEdge(minBin),
+                                hspec->GetBinLowEdge(maxBin) + hspec->GetBinWidth(maxBin), model);
 
-   pmt->ParSettings(0).SetValue( seeds.at("Norm") ); 
-   pmt->ParSettings(0).SetLimits(0.5 * seeds.at("Norm"), 1.5 * seeds.at("Norm"));
+   pmt->ParSettings(0).SetValue(seeds.at("Norm"));
+   pmt->ParSettings(0).SetLimits(0.9 * seeds.at("Norm"), 1.1 * seeds.at("Norm"));
 
    pmt->ParSettings(1).SetValue(seeds.at("Q0"));
-   pmt->ParSettings(1).SetLimits(seeds.at("Q0") - seeds.at("#sigma_{0}"), seeds.at("Q0") + seeds.at("#sigma_{0}"));
+   pmt->ParSettings(1).SetLimits(seeds.at("Q0") - 0.1 * seeds.at("#sigma_{0}"), seeds.at("Q0") + 0.1 * seeds.at("#sigma_{0}"));
 
    pmt->ParSettings(2).SetValue(seeds.at("#sigma_{0}"));
-   pmt->ParSettings(2).SetLimits(0.5 * seeds.at("#sigma_{0}"), 1.5 * seeds.at("#sigma_{0}"));
+   pmt->ParSettings(2).SetLimits(0.9 * seeds.at("#sigma_{0}"), 1.1 * seeds.at("#sigma_{0}"));
 
    pmt->ParSettings(3).SetValue(seeds.at("#mu"));
-   pmt->ParSettings(3).SetLimits(0.02, std::max(1.5 * seeds.at("#mu"), 1.0));
+   pmt->ParSettings(3).SetLimits(std::max(0.5 * seeds.at("#mu"), 0.02), std::max(2.0 * seeds.at("#mu"), 1.0));
 
    pmt->ParSettings(4).SetValue(seeds.at("gain"));
    pmt->ParSettings(4).SetLimits(0.3 * seeds.at("gain"), 1.5 * seeds.at("gain"));
 
    pmt->ParSettings(5).SetValue(2.0 * seeds.at("#sigma_{0}"));
-   pmt->ParSettings(5).SetLimits(seeds.at("#sigma_{0}"), 5.0 * seeds.at("#sigma_{0}"));
+   pmt->ParSettings(5).SetLimits(seeds.at("#sigma_{0}"), 3.0 * seeds.at("#sigma_{0}"));
 
    pmt->ParSettings(6).SetValue(seeds.at("#alpha"));
-   pmt->ParSettings(6).SetLimits(0.01 * seeds.at("#alpha"), 3.0 * seeds.at("#alpha"));
+   pmt->ParSettings(6).SetLimits(0.5 * seeds.at("#alpha"), 2.0 * seeds.at("#alpha"));
 
    pmt->ParSettings(7).SetValue(seeds.at("w"));
    pmt->ParSettings(7).SetLimits(0.00, 0.65);
@@ -290,11 +305,30 @@ PMTModel *SPEFitter::CreatePMTModel(TH1 *hspec, PMType::Model model, Double_t Q0
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Create a TF1 containing the given model and transfer the parameter settings
-TF1 *SPEFitter::MakeTF1(IModel *model){
+TF1 *SPEFitter::MakeTF1(IModel *model)
+{
    Double_t xMin = 0.0, xMax = 0.0;
    model->GetRange(xMin, xMax);
    TF1 *fit = new TF1("model", model, &IModel::EvalPar, xMin, xMax, model->NPar());
-   for(UInt_t ipar = 0; ipar < model->NPar(); ++ipar){
+   for (UInt_t ipar = 0; ipar < model->NPar(); ++ipar) {
+      ROOT::Fit::ParameterSettings par = model->ParSettings(ipar);
+      fit->SetParameter(ipar, par.Value());
+      fit->SetParLimits(ipar, par.LowerLimit(), par.UpperLimit());
+      fit->SetParName(ipar, par.Name().c_str());
+   }
+   fit->SetChisquare(model->GetChiSquare());
+   fit->SetNDF(model->GetNDF());
+   return fit;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+/// Create a TF1 containing the given model and transfer the parameter settings
+TF1 *SPEFitter::MakeTF1(std::shared_ptr<IModel> model)
+{
+   Double_t xMin = 0.0, xMax = 0.0;
+   model->GetRange(xMin, xMax);
+   TF1 *fit = new TF1("model", model, &IModel::EvalPar, xMin, xMax, model->NPar());
+   for (UInt_t ipar = 0; ipar < model->NPar(); ++ipar) {
       ROOT::Fit::ParameterSettings par = model->ParSettings(ipar);
       fit->SetParameter(ipar, par.Value());
       fit->SetParLimits(ipar, par.LowerLimit(), par.UpperLimit());
