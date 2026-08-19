@@ -15,6 +15,7 @@ public:
    ~SPEResponse() = default;
 
    void SetResponse(PMType::Response resp);
+   inline PMType::Response GetResponse() const { return m_resp; };
    Double_t gausexpfunc(Double_t x, const Double_t *par) const;
    Double_t gaus2expfunc(Double_t x, const Double_t *par) const;
    Double_t gammaexpfunc(Double_t x, const Double_t *par) const;
@@ -24,10 +25,10 @@ public:
    Double_t testfunc(Double_t x, const Double_t *par) const;
    virtual Double_t Gain(const Double_t *pars) const override;
    virtual Double_t GainError(const Double_t *pars, const Double_t *errs) const override;
-   
+
 private:
    virtual Double_t DoEvalPar(const Double_t x, const Double_t *p) const override;
-   PMType::Response m_resp;
+   PMType::Response m_resp{PMType::Response::GAUSS};
 };
 
 #endif
