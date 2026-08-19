@@ -5,6 +5,7 @@
 #include "TMath.h"
 #include "Math/SpecFuncMathMore.h"
 
+#include <RtypesCore.h>
 #include <vector>
 
 PMTModel::PMTModel(Int_t nbins, Double_t wbin, Double_t xmin, Double_t xmax, PMType::Model modtype)
@@ -173,12 +174,13 @@ Double_t PMTModel::SIMPLEGAUSS(Double_t x, const Double_t *pars) const
    result += TMath::Poisson(0.0, mu) * TMath::Gaus(x, Q0, s0, kTRUE);
 
    Double_t omega = (Q0 + alpha * TMath::Sq(s0) - x) * 0.5 * TMath::Sqrt2() / s0;
-   Double_t SR1 = w * alpha * 0.5 * TMath::Exp(-alpha * (x - Q0) + TMath::Sq(alpha * s0) * 0.5) * TMath::Erfc(omega);
+   Double_t SR1 =
+      w * alpha * 0.5 * TMath::Exp(-alpha * (x - Q0 + Q) + TMath::Sq(alpha * s0) * 0.5) * TMath::Erfc(omega);
    SR1 += (1.0 - w) * TMath::Gaus(x, Q0 + Q, TMath::Hypot(s0, s), kTRUE);
    result += TMath::Poisson(1.0, mu) * SR1;
 
    Double_t Qs = w / alpha + (1.0 - w) * Q;
-   Double_t ss2 = w / TMath::Sq(alpha) + (1 - w) * TMath::Sq(s) + w * (1.0 - w) * TMath::Sq(Q - 1.0 / alpha);
+   Double_t ss2 = w / TMath::Sq(alpha) + (1.0 - w) * TMath::Sq(s) + w * (1.0 - w) * TMath::Sq(Q - 1.0 / alpha);
 
    for (Int_t n = 2; n < 25; n++) {
       result += TMath::Poisson(n, mu) * TMath::Gaus(x, Q0 + n * Qs, TMath::Sqrt(TMath::Sq(s0) + n * ss2), kTRUE);
@@ -199,11 +201,12 @@ Double_t PMTModel::TRUNCGAUSS(Double_t x, const Double_t *pars) const
    Double_t alpha = pars[6];
    Double_t w = pars[7];
 
-   result += TMath::Poisson(0.0, mu) * TMath::Gaus(x, Q0 + Q, TMath::Hypot(s0, s), kTRUE);
+   result += TMath::Poisson(0.0, mu) * TMath::Gaus(x, Q0, s0, kTRUE);
 
    Double_t s1 = TMath::Hypot(s0, s);
    Double_t omega = (Q0 + alpha * TMath::Sq(s0) - x) * 0.5 * TMath::Sqrt2() / s0;
-   Double_t SR1 = w * alpha / 2.0 * TMath::Exp(-alpha * (x - Q0) + TMath::Sq(alpha * s0) / 2.0) * TMath::Erfc(omega);
+   Double_t SR1 =
+      w * alpha / 2.0 * TMath::Exp(-alpha * (x - Q0 + Q) + TMath::Sq(alpha * s0) / 2.0) * TMath::Erfc(omega);
 
    Double_t gn = 0.5 * TMath::Erfc(-Q / (TMath::Sqrt2() * s));
    Double_t A = (Q0 - x) * TMath::Sq(s) - Q * TMath::Sq(s0);
@@ -240,7 +243,8 @@ Double_t PMTModel::ANATRUNCG(Double_t x, const Double_t *pars) const
    result += TMath::Poisson(0, mu) * TMath::Gaus(x, Q0, s0, kTRUE); // n = 0
 
    Double_t omega0 = (Q0 + alpha * TMath::Sq(s0) - x) * 0.5 * TMath::Sqrt2() / s0;
-   Double_t SR1 = w * alpha * 0.5 * TMath::Exp(TMath::Sq(alpha * s0) * 0.5 - alpha * (x - Q0)) * TMath::Erfc(omega0);
+   Double_t SR1 =
+      w * alpha * 0.5 * TMath::Exp(TMath::Sq(alpha * s0) * 0.5 - alpha * (x - Q0 + Q)) * TMath::Erfc(omega0);
 
    Double_t s1 = TMath::Hypot(s0, s);
    Double_t gn = 0.5 * TMath::Erfc(-Q / (TMath::Sqrt2() * s));
@@ -255,7 +259,8 @@ Double_t PMTModel::ANATRUNCG(Double_t x, const Double_t *pars) const
    Double_t sg2 = TMath::Sq(s) - Qg * k;
 
    for (Int_t n = 2; n < m_nlim; n++) {
-      Double_t SRn = TMath::Power(1.0 - w, n) * TMath::Gaus(x,  Q0 + n * Qg, TMath::Sqrt(TMath::Sq(s0) + n * sg2), kTRUE);
+      Double_t SRn =
+         TMath::Power(1.0 - w, n) * TMath::Gaus(x, Q0 + n * Qg, TMath::Sqrt(TMath::Sq(s0) + n * sg2), kTRUE);
 
       for (Int_t m = 1; m <= n; m++) {
          Double_t Qmn = Q0 + (n - m) * Qg;
@@ -280,8 +285,7 @@ Double_t PMTModel::ANATRUNCG(Double_t x, const Double_t *pars) const
 
          } else if (omega < hi_limit && omega >= 0.0) {
             Double_t t1 = TMath::Gamma(A1m) * ROOT::Math::conf_hyperg(0.5 - A1m, 0.5, -omega2);
-            Double_t t2 =
-               2.0 * omega * TMath::Gamma(A2m) * ROOT::Math::conf_hyperg(1.5 - A2m, 1.5, -omega2);
+            Double_t t2 = 2.0 * omega * TMath::Gamma(A2m) * ROOT::Math::conf_hyperg(1.5 - A2m, 1.5, -omega2);
             Imn = 0.5 / TMath::Sqrt(TMath::Pi()) * (t1 + t2) * TMath::Exp(omega2 - psi2);
 
          } else if (omega < 0.0) {
@@ -300,7 +304,8 @@ Double_t PMTModel::ANATRUNCG(Double_t x, const Double_t *pars) const
    Double_t ss2 = w / TMath::Sq(alpha) + (1.0 - w) * sg2 + w * (1.0 - w) * TMath::Sq(Qg - 1.0 / alpha);
 
    for (Int_t n = m_nlim; n < 45; n++) {
-      result += TMath::Poisson(n, mu) * TMath::Gaus(x, Q0 + n * Qs, TMath::Sqrt(TMath::Sq(s0) + n * ss2), kTRUE); // n >= nlim
+      result +=
+         TMath::Poisson(n, mu) * TMath::Gaus(x, Q0 + n * Qs, TMath::Sqrt(TMath::Sq(s0) + n * ss2), kTRUE); // n >= nlim
    }
 
    return result * Norm * m_wBin;
@@ -321,7 +326,8 @@ Double_t PMTModel::EXPTRUNCG(Double_t x, const Double_t *pars) const
    result += TMath::Poisson(0, mu) * TMath::Gaus(x, Q0, s0, kTRUE); // n = 0
 
    Double_t omega0 = (x - Q0 - alpha * TMath::Sq(s0)) * 0.5 * TMath::Sqrt2() / s0;
-   Double_t SR1 = 0.5 * w * alpha * TMath::Exp(0.5 * TMath::Sq(alpha * s0) - alpha * (x - Q0)) * TMath::Erfc(-omega0);
+   Double_t SR1 =
+      0.5 * w * alpha * TMath::Exp(0.5 * TMath::Sq(alpha * s0) - alpha * (x - Q0 + Q)) * TMath::Erfc(-omega0);
 
    Double_t s1 = TMath::Hypot(s0, s);
    Double_t gn = 0.5 * TMath::Erfc(-Q / (TMath::Sqrt2() * s));
@@ -336,7 +342,8 @@ Double_t PMTModel::EXPTRUNCG(Double_t x, const Double_t *pars) const
    Double_t sg2 = TMath::Sq(s) - Qg * k;
 
    for (Int_t n = 2; n < m_nlim2; n++) {
-      Double_t SRn = TMath::Power(1.0 - w, n) * TMath::Gaus(x, Q0 + n * Qg, TMath::Sqrt(TMath::Sq(s0) + n * sg2), kTRUE);
+      Double_t SRn =
+         TMath::Power(1.0 - w, n) * TMath::Gaus(x, Q0 + n * Qg, TMath::Sqrt(TMath::Sq(s0) + n * sg2), kTRUE);
 
       for (Int_t m = 1; m <= n; m++) {
          Double_t Qmn = Q0 + (n - m) * Qg;
@@ -548,8 +555,8 @@ TGraph *PMTModel::GetGraphN2(Int_t n)
          Double_t gn = 0.5 * TMath::Erfc(-Q / (TMath::Sqrt2() * s));
          Double_t A = (Q0 - x) * TMath::Sq(s) - Q * TMath::Sq(s0);
          Double_t B = TMath::Sqrt2() * s0 * s * s1;
-         SR1 +=
-            (1.0 - w) / 2.0 / gn / (TMath::Sqrt(TMath::TwoPi()) * s1) * TMath::Exp(-0.5 * arg1 * arg1) * TMath::Erfc(A / B);
+         SR1 += (1.0 - w) / 2.0 / gn / (TMath::Sqrt(TMath::TwoPi()) * s1) * TMath::Exp(-0.5 * arg1 * arg1) *
+                TMath::Erfc(A / B);
          SR1 *= TMath::Poisson(1, mu);
          y += Norm * m_wBin * SR1; // 1
       }
@@ -598,13 +605,14 @@ TGraph *PMTModel::GetGraphN2(Int_t n)
 
       if (n >= m_nlim2) {
          Double_t gn = 0.5 * TMath::Erfc(-Q / (TMath::Sqrt2() * s));
-         Double_t k = s / gn / TMath::Sqrt(TMath::TwoPi()) * TMath::Exp(-0.5 *TMath::Sq(Q) / TMath::Sq(s));
+         Double_t k = s / gn / TMath::Sqrt(TMath::TwoPi()) * TMath::Exp(-0.5 * TMath::Sq(Q) / TMath::Sq(s));
          Double_t Qg = Q + k;
          Double_t sg2 = TMath::Sq(s) - Qg * k;
 
          Double_t Qs = w / alpha + (1.0 - w) * Qg;
          Double_t ss2 = w / TMath::Sq(alpha) + (1 - w) * sg2 + w * (1.0 - w) * TMath::Sq(Qg - 1.0 / alpha);
-         Double_t SRn = TMath::Poisson(n, mu) * TMath::Gaus(x, Q0 + n * Qs, TMath::Sqrt(TMath::Sq(s0) + n * ss2), kTRUE);
+         Double_t SRn =
+            TMath::Poisson(n, mu) * TMath::Gaus(x, Q0 + n * Qs, TMath::Sqrt(TMath::Sq(s0) + n * ss2), kTRUE);
          y += Norm * m_wBin * SRn; // n >= nlim
       }
 
@@ -625,20 +633,11 @@ TGraph *PMTModel::GetGraphN2(Int_t n)
 
 Double_t PMTModel::Gain(const Double_t *pars) const
 {
-   Double_t Q = pars[4];
-   Double_t alpha = pars[6];
-   Double_t w = pars[7];
-   return w / alpha + (1.0 - w) * Q; // From PMTCalib example2
+   return pars[4] - pars[1];
 }
 
 Double_t PMTModel::GainError(const Double_t *pars, const Double_t *errs) const
 {
-   Double_t Q = pars[4];
-   Double_t Qerr = errs[4];
-   Double_t alpha = pars[6];
-   Double_t alphaErr = errs[6];
-   Double_t w = pars[7];
-   Double_t wErr = errs[7];
-   return TMath::Sqrt(TMath::Power((1.0 - w) * Qerr, 2) + TMath::Power((Q - alpha) * wErr, 2) +
-                      TMath::Power(w / (alpha * alpha) * alphaErr, 2));
+   ;
+   return TMath::Hypot(errs[1], errs[4]);
 }
