@@ -16,6 +16,7 @@
 #include "TH1.h"
 #include "TF1.h"
 #include <TMath.h>
+#include <ROOT/EExecutionPolicy.hxx>
 #include "TApplication.h"
 #include "TH1D.h"
 #include "TError.h"
@@ -90,7 +91,7 @@ Int_t example8()
    fitter.Config().SetMinimizer("Minuit2", "Migrad");
    fitter.Config().MinimizerOptions().SetMaxIterations(1e6);
    fitter.Config().MinimizerOptions().SetTolerance(1e-2);
-   fitter.Fit(data);
+   fitter.Fit(data, ROOT::EExecutionPolicy::kMultiThread);
 
    // Stop the clock after fiting
    sw.Stop();
