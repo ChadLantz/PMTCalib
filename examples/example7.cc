@@ -44,19 +44,13 @@ Int_t example7()
    // Create the fitter/model. The fitter generates seeds from the histogram and
    // the given Pedestal mean and width which is gathered from dark current data
    SPEFitter fitter;
-   PMTModel *mod = fitter.CreatePMTModel(hSpec, PMType::Model::TRUNCGAUSS, Q0, s0);
+   PMTModel *mod = fitter.CreatePMTModel(hSpec, PMType::Model::EXPTRUNCG, Q0, s0);
 
    // The model has been created and seeded.
    // More parameter tuning can be done here
 
    // Load the model into a TF1
-   TF1 *fit = new TF1("dfTF1", mod, xmin, xmax, mod->NPar());
-   for (UInt_t ipar = 0; ipar < mod->NPar(); ++ipar) {
-      ROOT::Fit::ParameterSettings par = mod->ParSettings(ipar);
-      fit->SetParName(ipar, par.Name().c_str());
-      fit->SetParameter(ipar, par.Value());
-      fit->SetParLimits(ipar, par.LowerLimit(), par.UpperLimit());
-   }
+   TF1 *fit = fitter.MakeTF1(mod);
    fit->SetLineColor(kBlue);
    hSpec->Fit(fit, "R");
 
@@ -65,10 +59,7 @@ Int_t example7()
    Info("example7.C", "Fit took %.0fms Real time and %.0fms CPU time", sw.RealTime() * 1000, sw.CpuTime() * 1000);
 
    // Calculate the gain and print the result
-   Double_t Qfit = mod->ParSettings(4).Value();
-   Double_t alphaFit = mod->ParSettings(6).Value();
-   Double_t wFit = mod->ParSettings(7).Value();
-   Double_t Gfit = wFit / alphaFit + (1.0 - wFit) * Qfit;
+   Double_t Gfit = mod->Gain(fit->GetParameters());
    Info("example7.C", "\tTrue Gain : %.2f\n\tBF Gain   : %.2f\n\tDeviation : %.2f%%", Gtrue, Gfit,
         (Gfit / Gtrue - 1.0) * 100.0);
 

@@ -9,6 +9,7 @@
 #include "TError.h"
 #include "TCanvas.h"
 #include "TStopwatch.h"
+#include <TFitResultPtr.h>
 #include <Fit/FitResult.h>
 #include <Rtypes.h>
 
@@ -51,7 +52,7 @@ Int_t example4()
    // More parameter tuning can be done here
 
    // Minimize
-   ROOT::Fit::FitResult result = fitter.HybridMinimize(method, hSpec);
+   TFitResultPtr result = fitter.HybridMinimize(method, hSpec);
 
    // Stop the clock after fiting
    sw.Stop();
@@ -63,21 +64,19 @@ Int_t example4()
         (Gfit / Gtrue - 1.0) * 100.0);
 
    // Display the result
-   TF1 *displayFit = fitter.MakeTF1(method); // Wrap the model in a TF1 with the helper
-   displayFit->SetFitResult(result);
-   displayFit->SetLineColor(kAzure + 1);
-   result.Print(std::cout);
+   TGraph *graph = method->GetGraph();
+   graph->SetLineColor(kAzure + 1);
    
    TCanvas *c1 = new TCanvas("c1", "");
    c1->cd();
    c1->SetLogy();
    hSpec->Draw("PEZ");
-   displayFit->Draw("SAME L");
-   TGraph *grPE[25];
-   for (Int_t i = 0; i < 25; i++) {
-      grPE[i] = method->GetGraphN(i);
-      grPE[i]->Draw("SAME L");
-   }
+   graph->Draw("SAME L");
+   // TGraph *grPE[25];
+   // for (Int_t i = 0; i < 25; i++) {
+   //    grPE[i] = method->GetGraphN(i);
+   //    grPE[i]->Draw("SAME L");
+   // }
    c1->Update();
    c1->WaitPrimitive();
    return 0;

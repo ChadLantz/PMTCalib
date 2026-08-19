@@ -31,10 +31,11 @@ Int_t example3()
    Double_t alpha = 1.0 / 8.0;
    Double_t w = 0.2;
    Double_t Gtrue = w * alpha + (1.0 - w) * Q;
-   Double_t p[4] = {Q, s, alpha, w};
+   Double_t p[6] = {1.0 / Q, s, alpha, w, alpha, w};
+   PMType::Response response = PMType::Response::GAMMA2EXP;
 
    // Generate the spectrum to be fit
-   PMT specimen(nbins, xmin, xmax, Q0, s0, PMType::Response::GAUSS, p);
+   PMT specimen(nbins, xmin, xmax, Q0, s0, response, p);
    TH1D *hSpec = specimen.GenSpectrum(Norm, mu);
 
    // Start the clock before generating the model
@@ -45,36 +46,36 @@ Int_t example3()
    // the given Pedestal mean and width which is gathered from dark current data
    SPEFitter fitter;
    fitter.SetVerbose(1);
-   DFTmethod *method = fitter.CreateDFTmethod(hSpec, PMType::Response::GAUSS, Q0, s0);
-
+   DFTmethod *method = fitter.CreateDFTmethod(hSpec, response, Q0, s0);
+   
    // The model has been created and seeded.
    // More parameter tuning can be done here
-
-   // Minimize
-   fitter.HybridMinimize(method, hSpec);
+   
+   // fit
+   TF1 *dfTF1 = fitter.MakeTF1(method);
+   TFitResultPtr result = hSpec->Fit(dfTF1, "LSR+");
 
    // Stop the clock after fiting
    sw.Stop();
    Info("example3.C", "Fit took %.0fms Real time and %.0fms CPU time", sw.RealTime() * 1000, sw.CpuTime() * 1000);
 
    // Calculate the gain and print the result
-   Double_t Gfit = method->Gain(method->Parameters());
+   Double_t Gfit = method->Gain(result->Parameters().data());
    Info("example3.C", "\tTrue Gain : %.2f\n\tBF Gain   : %.2f\n\tDeviation : %.2f%%", Gtrue, Gfit,
         (Gfit / Gtrue - 1.0) * 100.0);
 
    // Display the result
-   TF1 *dfTF1 = fitter.MakeTF1(method);
-   dfTF1->SetLineColor(kAzure + 1);
    TCanvas *c1 = new TCanvas("c1", "");
    c1->cd();
    c1->SetLogy();
    hSpec->Draw("PEZ");
+   dfTF1->SetLineColor(kAzure + 1);
    dfTF1->Draw("SAME L");
-   TGraph *grPE[25]; // Show the components of the spectrum
-   for (Int_t i = 0; i < 25; i++) {
-      grPE[i] = method->GetGraphN(i);
-      grPE[i]->Draw("SAME L");
-   }
+   // TGraph *grPE[25]; // Show the components of the spectrum
+   // for (Int_t i = 0; i < 25; i++) {
+   //    grPE[i] = method->GetGraphN(i);
+   //    grPE[i]->Draw("SAME L");
+   // }
    c1->Update();
    c1->WaitPrimitive();
    return 0;

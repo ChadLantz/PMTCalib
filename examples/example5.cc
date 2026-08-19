@@ -49,17 +49,15 @@ Int_t example5()
    // More parameter tuning can be done here
 
    // Minimize
-   fitter.HybridMinimize(num, hSpec);
+   TF1 *fit = fitter.MakeTF1(num);
+   TFitResultPtr result = hSpec->Fit(fit, "LSR+");
 
    // Stop the clock after fiting
    sw.Stop();
    Info("example5.C", "Fit took %.0fms Real time and %.0fms CPU time", sw.RealTime() * 1000, sw.CpuTime() * 1000);
 
    // Calculate the gain and print the result
-   Double_t Qfit = num->ParSettings(4).Value();
-   Double_t alphaFit = num->ParSettings(6).Value();
-   Double_t wFit = num->ParSettings(7).Value();
-   Double_t Gfit = wFit / alphaFit + (1.0 - wFit) * Qfit;
+   Double_t Gfit = num->Gain(result->Parameters().data());
    Info("example5.C", "\tTrue Gain : %.2f\n\tBF Gain   : %.2f\n\tDeviation : %.2f%%", Gtrue, Gfit,
         (Gfit / Gtrue - 1.0) * 100.0);
 
