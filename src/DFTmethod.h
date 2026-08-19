@@ -71,6 +71,7 @@ public:
 class DFTmethod : public IModel {
 
 public:
+   DFTmethod();
    DFTmethod(PMType::Response sper);
    DFTmethod(Int_t nbins, Double_t wbin, Double_t xmin, Double_t xmax, PMType::Response sper);
    DFTmethod(const DFTmethod &other);
@@ -78,14 +79,12 @@ public:
    virtual ~DFTmethod() = default;
 
    virtual void SetParameters(const Double_t *pars) override;
+   virtual void SetResponse(PMType::Response resp);
    UInt_t GetNCalls() { return m_nCalls; };
    TGraph *GetGraph();
    TGraph *GetGraphN(Int_t n);
-   virtual Double_t Gain(const Double_t *pars) const override { return m_resp.Gain(&pars[4]); }
-   virtual Double_t GainError(const Double_t *pars, const Double_t *errs) const override
-   {
-      return m_resp.GainError(&pars[4], &errs[4]);
-   }
+   virtual Double_t Gain(const Double_t *pars) const override;
+   virtual Double_t GainError(const Double_t *pars, const Double_t *errs) const override;
 
 private:
    virtual Double_t DoEvalPar(const Double_t x, const Double_t *pars) const override;

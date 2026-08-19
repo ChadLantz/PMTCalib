@@ -14,26 +14,26 @@
 ## DFTmethod: Convolution based fit method for low light PMT spectra
 
 DFTmethod is the implementation of a FT convolution fitting algorithm. Convolves
-a background function with a single photo-electron response function before
-applying another transfer function(?), finally inverting the transform and
-storing real values in a TGraph for later lookup.
+a background function with a single photo-electron response function, finally
+inverting the transform and storing real values in a TGraph for later lookup.
 
-Bugs:
-   m_step needs to be reviewed. Right now the step size grows and shrinks with
-   the range
  */
 ////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////
 /// Construct with a response type. This is the minimum to use Gain and
 /// GainError
-DFTmethod::DFTmethod(PMType::Response sper) : IModel(), m_resp(sper) 
+DFTmethod::DFTmethod() : IModel(), m_resp()
 {
-   SetNpar(4 + m_resp.NPar());
-   SetParNames({"Norm", "Q0", "#sigma_{0}", "#mu"});
-   for (UInt_t par = 4; par < NPar(); ++par) {
-      ParSettings(par).SetName(m_resp.ParSettings(par - 4).Name());
-   }
+   SetResponse(m_resp.GetResponse());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+/// Construct with a response type. This is the minimum to use Gain and
+/// GainError
+DFTmethod::DFTmethod(PMType::Response sper) : IModel(), m_resp(sper)
+{
+   SetResponse(sper);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -51,8 +51,7 @@ DFTmethod::DFTmethod(Int_t nbins, Double_t wbin, Double_t xmin, Double_t xmax, P
 
 ////////////////////////////////////////////////////////////////////////////////
 ///
-DFTmethod::DFTmethod(const DFTmethod &other)
-   : IModel(other), m_nCalls(0), m_resp(other.m_resp)
+DFTmethod::DFTmethod(const DFTmethod &other) : IModel(other), m_nCalls(0), m_resp(other.m_resp)
 {
    fftwState.init(m_nBins, m_xMin, m_xMax);
 }
@@ -69,7 +68,7 @@ void DFTmethod::CalculateValues(const Double_t *pars) const
    for (UInt_t i = 0; i < fftwState.N; i++) {
       Double_t x = fftwState.gr.GetPointX(i);
       fftwState.wfinBG[i] = TMath::Gaus(x, Q0, s0, kTRUE);
-      fftwState.wfinSG[i] = m_resp(&x, &pars[4]);
+      fftwState.wfinSG[i] = m_resp(x - m_xMin, &pars[4]);
    }
 
    fftw_execute(fftwState.FWfftBG);
@@ -83,7 +82,7 @@ void DFTmethod::CalculateValues(const Double_t *pars) const
    }
 
    fftw_execute(fftwState.BWfft);
-   Double_t normConst = Norm * m_wBin * TMath::Exp(-mu) / Double_t(fftwState.N); // Calculate this once
+   Double_t normConst = Norm * m_wBin * TMath::Exp(-mu) / Double_t(fftwState.N);
    for (Int_t i = 0; i < fftwState.N; i++) {
       fftwState.gr.SetPointY(i, normConst * fftwState.fftout[i]);
    }
@@ -102,10 +101,21 @@ void DFTmethod::SetParameters(const Double_t *pars)
       }
    }
 
-   if (parsChanged || !fftwState.IsInitialized()) {
+   if (parsChanged) {
+      if (!fftwState.IsInitialized())
+         fftwState.init(m_nBins, m_xMin, m_xMax);
       m_nCalls++;
       m_resp.SetParameters(&pars[4]);
       CalculateValues(pars);
+   }
+}
+
+void DFTmethod::SetResponse(PMType::Response resp)
+{
+   m_resp.SetResponse(resp);
+   SetNpar(4 + m_resp.NPar());
+   for (UInt_t par = 4; par < NPar(); ++par) {
+      ParSettings(par).SetName(m_resp.ParSettings(par - 4).Name());
    }
 }
 
@@ -122,7 +132,9 @@ Double_t DFTmethod::DoEvalPar(const Double_t x, const Double_t *pars) const
       }
    }
 
-   if (parsChanged || !fftwState.IsInitialized()) {
+   if (parsChanged) {
+      if (!fftwState.IsInitialized())
+         fftwState.init(m_nBins, m_xMin, m_xMax);
       m_nCalls++;
       m_resp.SetParameters(&pars[4]);
       CalculateValues(pars);
@@ -159,7 +171,7 @@ TGraph *DFTmethod::GetGraphN(Int_t n)
    for (UInt_t i = 0; i < fftwState.N; i++) {
       Double_t x = fftwState.gr.GetPointX(i);
       fftwState.wfinBG[i] = TMath::Gaus(x, Q0, s0, kTRUE);
-      fftwState.wfinSG[i] = m_resp(&x, &m_parameters[4]);
+      fftwState.wfinSG[i] = m_resp(x, &m_parameters[4]);
    }
 
    fftw_execute(fftwState.FWfftBG);
@@ -177,7 +189,7 @@ TGraph *DFTmethod::GetGraphN(Int_t n)
    fftw_execute(fftwState.BWfft);
    TGraph *_gr = new TGraph(fftwState.N);
    Double_t normConst = Norm * m_wBin * TMath::Exp(-mu) * pow(mu, dblN) /
-               (Double_t(fftwState.N) * TMath::Factorial(n)); // Calculate this once
+                        (Double_t(fftwState.N) * TMath::Factorial(n)); // Calculate this once
    for (Int_t i = 0; i < fftwState.N; i++) {
       Double_t y = normConst * fftwState.fftout[i];
 
@@ -195,4 +207,30 @@ TGraph *DFTmethod::GetGraphN(Int_t n)
    _gr->SetMarkerSize(0.1);
 
    return _gr;
+}
+
+Double_t DFTmethod::Gain(const Double_t *pars) const
+{
+   Double_t Q0 = pars[1];
+   Double_t mu = pars[3];
+   Double_t Q = 0.0;
+   switch (m_resp.GetResponse()) {
+   case PMType::Response::GAMMA:
+   case PMType::Response::GAMMA2EXP: Q = 1.0 / pars[4]; break;
+   default: Q = pars[4]; break;
+   }
+   return Q;
+}
+
+
+Double_t DFTmethod::GainError(const Double_t *pars, const Double_t *errs) const
+{
+   Double_t Q = 0.0;
+   switch (m_resp.GetResponse()) {
+   case PMType::Response::GAMMA:
+   case PMType::Response::WEIBULL:
+   case PMType::Response::GAMMA2EXP: Q = 1.0 / errs[4]; break;
+   default: Q = errs[4]; break;
+   }
+   return Q;
 }
