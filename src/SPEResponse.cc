@@ -82,12 +82,12 @@ Double_t SPEResponse::gausexpfunc(Double_t x, const Double_t *par) const
       if (s != 0.0)
          arg = (x - Q) / s;
       else
-         Error("_gausexpfunc", "Division by zero: sigma");
+         Error("gausexpfunc", "Division by zero: sigma");
 
-      Double_t gn = 0.5 * TMath::Erfc(-Q / (sqrt(2.0) * s));
+      Double_t gn = 0.5 * TMath::Erfc(-Q / (TMath::Sqrt2() * s));
 
       result = w * alpha * TMath::Exp(-x * alpha) +
-               (1.0 - w) / (sqrt(2.0 * TMath::Pi()) * s * gn) * TMath::Exp(-0.5 * arg * arg);
+               (1.0 - w) / (TMath::Sqrt(TMath::TwoPi()) * s * gn) * TMath::Exp(-0.5 * arg * arg);
    }
 
    return result;
@@ -110,12 +110,12 @@ Double_t SPEResponse::gaus2expfunc(Double_t x, const Double_t *par) const
       if (s != 0.0)
          arg = (x - Q) / s;
       else
-         Error("_gaus2expfunc", "Division by zero: sigma");
+         Error("gaus2expfunc", "Division by zero: sigma");
 
       Double_t gn = 0.5 * TMath::Erfc(-Q / (sqrt(2.0) * s));
 
       result = w1 * alpha1 * TMath::Exp(-x * alpha1) + w2 * alpha2 * TMath::Exp(-x * alpha2) +
-               (1.0 - w1 - w2) / (sqrt(2.0 * TMath::Pi()) * s * gn) * TMath::Exp(-0.5 * arg * arg);
+               (1.0 - w1 - w2) / (TMath::Sqrt(TMath::TwoPi()) * s * gn) * TMath::Exp(-0.5 * arg * arg);
    }
 
    return result;
@@ -135,8 +135,8 @@ Double_t SPEResponse::gammaexpfunc(Double_t x, const Double_t *par) const
       Double_t f = lambda * (1.0 + theta);
       Double_t fx = lambda * (1.0 + theta) * x;
 
-      result = w * 1.0 * alpha * TMath::Exp(-x * alpha) +
-               (1.0 - w) * f * pow(fx, theta) / TMath::Gamma(1.0 + theta) * TMath::Exp(-fx);
+      result = w * alpha * TMath::Exp(-x * alpha) +
+               (1.0 - w) * f * TMath::Power(fx, theta) / TMath::Gamma(1.0 + theta) * TMath::Exp(-fx);
    }
 
    return result;
@@ -158,8 +158,8 @@ Double_t SPEResponse::gamma2expfunc(Double_t x, const Double_t *par) const
       Double_t f = lambda * (1.0 + theta);
       Double_t fx = lambda * (1.0 + theta) * x;
 
-      result = w1 * 1.0 * alpha1 * TMath::Exp(-x * alpha1) + w2 * 1.0 * alpha2 * TMath::Exp(-x * alpha2) +
-               (1.0 - w1 - w2) * f * pow(fx, theta) / TMath::Gamma(1.0 + theta) * TMath::Exp(-fx);
+      result = w1 * alpha1 * TMath::Exp(-x * alpha1) + w2 * alpha2 * TMath::Exp(-x * alpha2) +
+               (1.0 - w1 - w2) * f * TMath::Power(fx, theta) / TMath::Gamma(1.0 + theta) * TMath::Exp(-fx);
    }
 
    return result;
@@ -179,7 +179,8 @@ Double_t SPEResponse::weibullexpfunc(Double_t x, const Double_t *par) const
       Double_t f = kappa / lambda;
       Double_t fx = x / lambda;
 
-      result = w * alpha * TMath::Exp(-x * alpha) + (1.0 - w) * f * pow(fx, kappa - 1.0) * TMath::Exp(-pow(fx, kappa));
+      result = w * alpha * TMath::Exp(-x * alpha) +
+               (1.0 - w) * f * TMath::Power(fx, kappa - 1.0) * TMath::Exp(-TMath::Power(fx, kappa));
    }
 
    return result;
@@ -203,7 +204,7 @@ Double_t SPEResponse::lognormalexpfunc(Double_t x, const Double_t *par) const
          Error("_lognormalexpfunc", "Division by zero: sigma");
 
       result = w * alpha * TMath::Exp(-x * alpha) +
-               (1.0 - w) / (sqrt(2.0 * TMath::Pi()) * s * x) * TMath::Exp(-0.5 * arg * arg);
+               (1.0 - w) / (TMath::Sqrt(TMath::TwoPi()) * s * x) * TMath::Exp(-0.5 * arg * arg);
    }
 
    return result;
@@ -227,13 +228,13 @@ Double_t SPEResponse::testfunc(Double_t x, const Double_t *par) const
       else
          Error("_testfunc", "Division by zero: sigma");
 
-      Double_t gn = 0.5 * TMath::Erfc(-Q / (sqrt(2.0) * s));
+      Double_t gn = 0.5 * TMath::Erfc(-Q / (TMath::Sqrt2() * s));
 
       Double_t f = lambda * (1.0 + theta);
       Double_t fx = lambda * (1.0 + theta) * x;
 
       result = w * f * pow(fx, theta) / TMath::Gamma(1.0 + theta) * TMath::Exp(-fx) +
-               (1.0 - w) / (sqrt(2.0 * TMath::Pi()) * s * gn) * TMath::Exp(-0.5 * arg * arg);
+               (1.0 - w) / (TMath::Sqrt(TMath::TwoPi()) * s * gn) * TMath::Exp(-0.5 * arg * arg);
    }
 
    return result;
@@ -317,9 +318,5 @@ Double_t SPEResponse::DoEvalPar(const Double_t x, const Double_t *pars) const
    default: Error("SPEResponse::DoEvalPar", "Invalid response type selected m_resp = %d", m_resp); break;
    }
 
-   // Info("SPEResponse::gammaexpfunc", "Returned %.2f for x = %.2f", retVal, x);
-   // for(UInt_t ipar = 0; ipar < NPar(); ++ipar){
-   //    Info("SPEResponse::gammaexpfunc", "%s = %.2f", ParameterName(ipar).c_str(), pars[ipar]);
-   // }
    return retVal;
 }
