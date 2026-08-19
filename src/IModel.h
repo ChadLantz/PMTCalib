@@ -65,6 +65,21 @@ public:
    }
 
    ////////////////////////////////////////////////////////////////////////////////
+   /// Set the parameters with the given array (non-const)
+   virtual void SetParameter(const UInt_t ipar, const Double_t par)
+   {
+      m_parameters.at(ipar) = par;
+      m_parSettings.at(ipar).SetValue(par);
+   }
+
+   ////////////////////////////////////////////////////////////////////////////////
+   /// Set the parameters with the given array (non-const)
+   virtual void SetParLimits(const UInt_t ipar, const Double_t min, const Double_t max)
+   {
+      m_parSettings.at(ipar).SetLimits(min, max);
+   }
+
+   ////////////////////////////////////////////////////////////////////////////////
    /// Set the number of parameters
    virtual void SetNpar(UInt_t n)
    {
@@ -146,7 +161,19 @@ public:
 
    ////////////////////////////////////////////////////////////////////////////////
    /// Return the pointer to an array of parameter values
+   virtual const Double_t Parameter(UInt_t ipar) const{ return m_parameters.at(ipar); }
+
+   ////////////////////////////////////////////////////////////////////////////////
+   /// Return the pointer to an array of parameter values
    virtual const Double_t *Errors() const { return m_parErrors.data(); }
+
+   ////////////////////////////////////////////////////////////////////////////////
+   /// Return the pointer to an array of parameter values
+   virtual const Double_t *ParErrors() const { return m_parErrors.data(); }
+
+   ////////////////////////////////////////////////////////////////////////////////
+   /// Return the pointer to an array of parameter values
+   virtual const Double_t ParError(UInt_t ipar) const { return m_parErrors.at(ipar); }
 
    ////////////////////////////////////////////////////////////////////////////////
    /// Get the vector of parameter settings (non-const method)
@@ -165,7 +192,9 @@ public:
    virtual std::string ParameterName(unsigned int i) const override { return m_parSettings.at(i).Name(); }
 
    ////////////////////////////////////////////////////////////////////////////////
-   /// Get the parameter settings for the i-th parameter (const method)
+   /// Range getters
+   virtual Double_t GetXmin() const { return m_xMin; }
+   virtual Double_t GetXmax() const { return m_xMax; }
    virtual void GetRange(Double_t &xmin, Double_t &xmax)
    {
       xmin = m_xMin;
