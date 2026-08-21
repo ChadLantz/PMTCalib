@@ -52,20 +52,21 @@ SPEFitter::GenerateSeeds(TH1 *hspec, const Double_t Q0, const Double_t s0, const
       hspec->Fit(gausn, "RQ+");
       // Adjust Q0 and sigma0 for this spectrum
       Double_t pedPop = gausn->GetParameter(0) / wbin; // Overestimates population as mu approaches zero
+      Double_t Q0Fit = gausn->GetParameter(1);
       Double_t s0Fit = gausn->GetParameter(2);
       // Provide an estimate for mu and gain
       Double_t mu = TMath::Log(seeds.at("Norm") / pedPop);
       Double_t Q1 = (mean - gausn->GetParameter(1)) / mu;
 
       // Fit with a 
-      TF1 *pedFit = new TF1("dblgaus", "gausn(0) + gausn(3)", Q0 - s0Fit, std::max(Q0 + 2.0 * s0Fit, Q1));
+      TF1 *pedFit = new TF1("dblgaus", "gausn(0) + gausn(3)", Q0 - s0Fit, std::max(Q0 + 2.0 * s0Fit, 1.25 * Q1 + Q0Fit));
       pedFit->SetParameter(0, wbin * hspec->GetBinContent(hspec->FindBin(Q0)));
       pedFit->SetParameter(1, Q0);
       pedFit->SetParLimits(1, Q0 - 0.25 * s0, Q0 + 0.25 * s0);
       pedFit->SetParameter(2, s0Fit);
       pedFit->SetParameter(3, wbin * hspec->GetBinContent(hspec->FindBin(Q1)));
       pedFit->SetParameter(4, Q1);
-      pedFit->SetParLimits(4, Q1 - 2.0 * s0Fit, Q1 + 5.0 * s0Fit);
+      pedFit->SetParLimits(4, Q1 - 5.0 * s0Fit, Q1 + 3.0 * s0Fit);
       pedFit->SetParameter(5, 2.0 * s0Fit);
       hspec->Fit(pedFit, "RQ+");
 
