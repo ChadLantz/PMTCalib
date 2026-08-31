@@ -49,7 +49,7 @@ SPEFitter::GenerateSeeds(TH1 *hspec, const Double_t Q0, const Double_t s0, const
       // Fit with a Gaussian first to estimate mu
       TF1 *gausn = new TF1("gausn", "gausn", Q0 - 2.0 * s0, Q0 + 2.0 * s0);
       gausn->SetParameters(0.5 * seeds.at("Norm") * wbin, Q0, s0);
-      hspec->Fit(gausn, "RQ+");
+      hspec->Fit(gausn, "LRQ");
       // Adjust Q0 and sigma0 for this spectrum
       Double_t pedPop = gausn->GetParameter(0) / wbin; // Overestimates population as mu approaches zero
       Double_t Q0Fit = gausn->GetParameter(1);
@@ -68,7 +68,7 @@ SPEFitter::GenerateSeeds(TH1 *hspec, const Double_t Q0, const Double_t s0, const
       pedFit->SetParameter(4, Q1);
       pedFit->SetParLimits(4, Q1 - 5.0 * s0Fit, Q1 + 3.0 * s0Fit);
       pedFit->SetParameter(5, 2.0 * s0Fit);
-      hspec->Fit(pedFit, "RQ+");
+      hspec->Fit(pedFit, "LRQ");
 
       mu = TMath::Log( seeds.at("Norm") / pedPop);
       seeds["pedPop"] = pedFit->GetParameter(0) / wbin; // Overestimates population as mu approaches zero
