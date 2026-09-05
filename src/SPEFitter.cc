@@ -38,52 +38,81 @@ std::map<std::string, Double_t>
 SPEFitter::GenerateSeeds(TH1 *hspec, const Double_t Q0, const Double_t s0, const Double_t errTol)
 {
    std::map<std::string, Double_t> seeds;
-   Double_t wbin = hspec->GetBinWidth(1);
-   Double_t mean = hspec->GetMean();
    seeds["Q0"] = Q0;
    seeds["#sigma_{0}"] = s0;
    seeds["Norm"] = hspec->Integral();
+   Double_t wbin = hspec->GetBinWidth(1);
+   Double_t mean = hspec->GetMean();
+   Double_t pedAmp = hspec->GetBinContent(hspec->FindBin(Q0));
+   // Provide first estimates
+   Double_t pedPop = pedAmp * s0 * TMath::Sqrt(TMath::TwoPi()) / wbin;
+   Double_t mu = TMath::Log(seeds.at("Norm") / pedPop);
 
    // If we have the resolution, fit the pedestal
    if (hspec->GetBinWidth(1) < 2.0 * s0) {
       // Fit with a Gaussian first to estimate mu
-      TF1 *gausn = new TF1("gausn", "gausn", Q0 - 2.0 * s0, Q0 + 2.0 * s0);
-      gausn->SetParameters(0.5 * seeds.at("Norm") * wbin, Q0, s0);
-      hspec->Fit(gausn, "LRQ");
+      TF1 *gaus = new TF1("gaus", "gaus", Q0 - 2.0 * s0, Q0 + 1.5 * s0);
+      gaus->SetParameters(pedAmp, Q0, s0);
+      gaus->SetParLimits(0, 0.5 * pedAmp, seeds.at("Norm"));
+      gaus->SetParLimits(1, Q0 - 0.5 * s0, Q0 + 0.5 * s0);
+      gaus->SetParLimits(2, 0.5 * s0, 2.0 * s0);
+      hspec->Fit(gaus, "LRQ");
       // Adjust Q0 and sigma0 for this spectrum
-      Double_t pedPop = gausn->GetParameter(0) / wbin; // Overestimates population as mu approaches zero
-      Double_t Q0Fit = gausn->GetParameter(1);
-      Double_t s0Fit = gausn->GetParameter(2);
-      // Provide an estimate for mu and gain
-      Double_t mu = TMath::Log(seeds.at("Norm") / pedPop);
-      Double_t Q1 = (mean - gausn->GetParameter(1)) / mu;
+      pedAmp = gaus->GetParameter(0);
+      Double_t Q0Fit = gaus->GetParameter(1);
+      Double_t s0Fit = gaus->GetParameter(2);
+      pedPop = pedAmp * s0Fit * TMath::Sqrt(TMath::TwoPi()) / wbin; // Overestimates population as mu approaches zero
+      // Refine the estimate for mu and gain
+      mu = TMath::Log(seeds.at("Norm") / pedPop);
+      Double_t gain = (mean - Q0Fit) / mu;
+      Double_t Q1 = Q0Fit + gain; // First estimate at 1PE peak location. Usually an overestimate
+      Double_t Q1amp = hspec->GetBinContent(hspec->FindBin(Q0 + gain));
 
-      // Fit with a 
-      TF1 *pedFit = new TF1("dblgaus", "gausn(0) + gausn(3)", Q0 - s0Fit, std::max(Q0 + 2.0 * s0Fit, 1.25 * Q1 + Q0Fit));
-      pedFit->SetParameter(0, wbin * hspec->GetBinContent(hspec->FindBin(Q0)));
-      pedFit->SetParameter(1, Q0);
-      pedFit->SetParLimits(1, Q0 - 0.25 * s0, Q0 + 0.25 * s0);
-      pedFit->SetParameter(2, s0Fit);
-      pedFit->SetParameter(3, wbin * hspec->GetBinContent(hspec->FindBin(Q1)));
-      pedFit->SetParameter(4, Q1);
-      pedFit->SetParLimits(4, Q1 - 5.0 * s0Fit, Q1 + 3.0 * s0Fit);
-      pedFit->SetParameter(5, 2.0 * s0Fit);
-      hspec->Fit(pedFit, "LRQ");
+      if (m_verbose > 1) {
+         Info("GenerateSeeds",
+              "Fit pedestal of %s. Provided Q0 = %.2e, s0 = %.2e. Gave:\n\tQ0 = %.2e\n\ts0 = %.2e\n\tmu = %.2f\n\tgain "
+              "= %.2e\n\tQ1 = %.2e\n\tQ1amp = %.2e",
+              hspec->GetName(), Q0, s0, Q0Fit, s0Fit, mu, gain, Q1, Q1amp);
+      }
 
-      mu = TMath::Log( seeds.at("Norm") / pedPop);
-      seeds["pedPop"] = pedFit->GetParameter(0) / wbin; // Overestimates population as mu approaches zero
-      seeds["Q0"] = pedFit->GetParameter(1);
-      seeds["#sigma_{0}"] = pedFit->GetParameter(2);
-      seeds["Q"] = pedFit->GetParameter(4); // Underestimates due to tail population
-      seeds["#mu"] = TMath::Log(seeds.at("Norm") / seeds.at("pedPop"));
-      seeds["#sigma"] = pedFit->GetParameter(5);
-      
+      // Fit with a
+      TF1 *dblGaus =
+         new TF1("dblgaus", "gaus(0) + gaus(3)", Q0Fit - s0Fit, std::max(Q0Fit + 2.0 * s0Fit, Q1 + Q0Fit + s0Fit));
+      dblGaus->SetParameter(0, 0.8 * pedAmp); // Overlap will reduce population
+      dblGaus->SetParLimits(0, 0.5 * pedAmp, 1.25 * pedAmp);
+      dblGaus->SetParameter(1, Q0Fit);
+      dblGaus->SetParLimits(1, Q0Fit - 0.25 * s0Fit, Q0Fit + 0.25 * s0Fit);
+      dblGaus->SetParameter(2, s0Fit);
+      dblGaus->SetParLimits(2, 0.8 * s0Fit, 1.2 * s0Fit);
+      dblGaus->SetParameter(3, Q1amp);
+      dblGaus->SetParLimits(3, 0.5 * Q1amp, 2.0 * Q1amp);
+      dblGaus->SetParameter(4, 0.8 * Q1);
+      dblGaus->SetParLimits(4, std::max(Q0Fit + 0.5 * s0Fit, Q1 - 5.0 * s0Fit), Q1 + 2.5 * s0Fit);
+      dblGaus->SetParameter(5, 2.0 * s0Fit);
+      dblGaus->SetParLimits(5, 1.5 * s0Fit, 10.0 * s0Fit);
+      hspec->Fit(dblGaus, "LRQ");
+
+      pedAmp = dblGaus->GetParameter(0);
+      seeds["Q0"] = Q0Fit = dblGaus->GetParameter(1);
+      seeds["#sigma_{0}"] = s0Fit = dblGaus->GetParameter(2);
+      seeds["Q"] = Q1 = dblGaus->GetParameter(4);
+      seeds["#sigma"] = dblGaus->GetParameter(5);
+      seeds["pedPop"] = pedPop = pedAmp * s0Fit * TMath::Sqrt(TMath::TwoPi()) / wbin;
+      seeds["#mu"] = TMath::Log(seeds.at("Norm") / pedPop);
+
+      if (m_verbose > 1) {
+         Info("GenerateSeeds",
+              "Fit double Gauss of %s. Provided Q0 = %.2e, s0 = %.2e. Gave:\n\tQ0 = %.2e\n\ts0 = %.2e\n\tQ = "
+              "%.2e\n\tsigma = %.2e\n\tmu = %.2f",
+              hspec->GetName(), Q0, s0, Q0Fit, s0Fit, Q1, seeds.at("#sigma"), seeds.at("#mu"));
+      }
+
    } else {
       Warning("GenerateSeeds", "binWidth is > 2 sigma0, cannot pre-fit pedestal");
-      // Just use the pedestal bin count
-      seeds["pedPop"] = hspec->GetBinContent(hspec->FindBin(Q0));
-      seeds["#mu"] = TMath::Log(seeds.at("Norm") / seeds.at("pedPop"));
-      seeds["Q"] = (mean - seeds.at("Q0")) / seeds.at("#mu");
+      // Just use the initial estimates
+      seeds["pedPop"] = pedPop;
+      seeds["#mu"] = mu;
+      seeds["Q"] = Q0 + (mean - Q0) / mu;
       seeds["#sigma"] = 2.0 * s0;
    }
 
@@ -115,7 +144,7 @@ SPEFitter::GenerateSeeds(TH1 *hspec, const Double_t Q0, const Double_t s0, const
    Double_t run = seeds.at("xMax") - hspec->GetBinCenter(hspec->GetMaximumBin());
    seeds["#alpha"] = lnRise / run;
 
-   seeds["w"] = 0.2;      // Fraction of PEs that miss the first dynode
+   seeds["w"] = 0.2; // Fraction of PEs that miss the first dynode
    seeds["#lambda"] = 1.0 / seeds.at("Q");
    seeds["#theta"] = 7.0; // Only used in test function
    seeds["#kappa"] = 7.0; // Peak prominance. Not sure how to seed yet
@@ -310,7 +339,8 @@ PMTModel *SPEFitter::CreatePMTModel(TH1 *hspec, PMType::Model model, Double_t Q0
    Bool_t hasS1seed = seeds.find("#sigma_{1}") != seeds.end();
    Double_t s1 = hasS1seed ? seeds.at("#sigma_{1}") : 2.5 * seeds.at("#sigma_{0}");
    pmt->SetParameter(5, s1);
-   pmt->SetParLimits(5, hasS1seed ? 0.75 * s1 : seeds.at("#sigma_{0}"), hasS1seed ? 1.5 * s1 : 5.0 * seeds.at("#sigma_{0}"));
+   pmt->SetParLimits(5, hasS1seed ? 0.75 * s1 : seeds.at("#sigma_{0}"),
+                     hasS1seed ? 1.5 * s1 : 5.0 * seeds.at("#sigma_{0}"));
 
    pmt->SetParameter(6, seeds.at("#alpha"));
    pmt->SetParLimits(6, 0.5 * seeds.at("#alpha"), 2.0 * seeds.at("#alpha"));
