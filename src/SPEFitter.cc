@@ -17,8 +17,10 @@
 #include "TF1.h"
 #include "TMath.h"
 #include "ROOT/EExecutionPolicy.hxx"
+#include <algorithm>
 #include <limits>
 #include <memory>
+#include <cmath>
 #include "RtypesCore.h"
 #include "TFitResult.h"
 #include <TFitResultPtr.h>
@@ -43,30 +45,72 @@ SPEFitter::GenerateSeeds(TH1 *hspec, const Double_t Q0, const Double_t s0, const
    seeds["Norm"] = hspec->Integral();
    Double_t wbin = hspec->GetBinWidth(1);
    Double_t mean = hspec->GetMean();
-   Double_t pedAmp = hspec->GetBinContent(hspec->FindBin(Q0));
+   Int_t pedBin = hspec->FindBin(Q0);
+   Int_t firstPedBin = std::max(1, pedBin - 1);
+   Int_t lastPedBin = std::min(hspec->GetNbinsX(), pedBin + 1);
+   Double_t pedAmp = 0.0;
+   for (Int_t bin = firstPedBin; bin <= lastPedBin; ++bin)
+      pedAmp = std::max(pedAmp, hspec->GetBinContent(bin));
+   if (!std::isfinite(seeds.at("Norm")) || seeds.at("Norm") <= 0.0)
+      seeds["Norm"] = 1.0;
+
+   auto validPositive = [](const Double_t value) { return std::isfinite(value) && value > 0.0; };
+   auto estimateMu = [&](const Double_t population) {
+      if (validPositive(population) && seeds.at("Norm") > population) {
+         const Double_t estimate = TMath::Log(seeds.at("Norm") / population);
+         if (std::isfinite(estimate) && estimate > 0.0)
+            return std::clamp(estimate, 0.02, 10.0);
+      }
+      return 0.25;
+   };
+   auto estimateGain = [&](const Double_t pedestal, const Double_t occupancy) {
+      const Double_t observedGain = (mean - pedestal) / occupancy;
+      if (validPositive(observedGain))
+         return observedGain;
+      return std::max(2.0 * std::abs(s0), wbin);
+   };
+   auto fitIsUsable = [](const TFitResultPtr &result, const TF1 *fit, const Int_t npar) {
+      if (!result.Get() || !result->IsValid())
+         return false;
+      for (Int_t ipar = 0; ipar < npar; ++ipar) {
+         if (!std::isfinite(fit->GetParameter(ipar)))
+            return false;
+      }
+      return true;
+   };
+
    // Provide first estimates
    Double_t pedPop = pedAmp * s0 * TMath::Sqrt(TMath::TwoPi()) / wbin;
-   Double_t mu = TMath::Log(seeds.at("Norm") / pedPop);
+   Double_t mu = estimateMu(pedPop);
 
    // If we have the resolution, fit the pedestal
    if (hspec->GetBinWidth(1) < 2.0 * s0) {
       // Fit with a Gaussian first to estimate mu
-      TF1 *gaus = new TF1("gaus", "gaus", Q0 - 2.0 * s0, Q0 + 1.5 * s0);
+      TF1 *gaus = new TF1("gaus", "gaus", Q0 - 2.5 * s0, Q0 + 1.5 * s0);
       gaus->SetParameters(pedAmp, Q0, s0);
       gaus->SetParLimits(0, 0.5 * pedAmp, seeds.at("Norm"));
       gaus->SetParLimits(1, Q0 - 0.5 * s0, Q0 + 0.5 * s0);
       gaus->SetParLimits(2, 0.5 * s0, 2.0 * s0);
-      hspec->Fit(gaus, "LRQ");
+      TFitResultPtr gausResult = hspec->Fit(gaus, "LRQ");
+      if (!fitIsUsable(gausResult, gaus, 3)) {
+         Warning("GenerateSeeds", "Pedestal fit failed for %s; retaining dark-current seeds", hspec->GetName());
+         seeds["pedPop"] = pedPop;
+         seeds["#mu"] = mu;
+         seeds["Q"] = Q0 + estimateGain(Q0, mu);
+         seeds["#sigma"] = 2.0 * s0;
+      } else {
       // Adjust Q0 and sigma0 for this spectrum
       pedAmp = gaus->GetParameter(0);
       Double_t Q0Fit = gaus->GetParameter(1);
       Double_t s0Fit = gaus->GetParameter(2);
       pedPop = pedAmp * s0Fit * TMath::Sqrt(TMath::TwoPi()) / wbin; // Overestimates population as mu approaches zero
       // Refine the estimate for mu and gain
-      mu = TMath::Log(seeds.at("Norm") / pedPop);
-      Double_t gain = (mean - Q0Fit) / mu;
+      mu = estimateMu(pedPop);
+      Double_t gain = estimateGain(Q0Fit, mu);
       Double_t Q1 = Q0Fit + gain; // First estimate at 1PE peak location. Usually an overestimate
-      Double_t Q1amp = hspec->GetBinContent(hspec->FindBin(Q0 + gain));
+      Double_t Q1amp = hspec->GetBinContent(hspec->FindBin(Q0Fit + gain));
+      if (!validPositive(Q1amp))
+         Q1amp = std::max(pedAmp, 1.0);
 
       if (m_verbose > 1) {
          Info("GenerateSeeds",
@@ -77,7 +121,7 @@ SPEFitter::GenerateSeeds(TH1 *hspec, const Double_t Q0, const Double_t s0, const
 
       // Fit with a
       TF1 *dblGaus =
-         new TF1("dblgaus", "gaus(0) + gaus(3)", Q0Fit - s0Fit, std::max(Q0Fit + 2.0 * s0Fit, Q1 + Q0Fit + s0Fit));
+         new TF1("dblgaus", "gaus(0) + gaus(3)", Q0Fit - s0Fit, std::max(Q0Fit + 2.0 * s0Fit, Q1 + s0Fit));
       dblGaus->SetParameter(0, 0.8 * pedAmp); // Overlap will reduce population
       dblGaus->SetParLimits(0, 0.5 * pedAmp, 1.25 * pedAmp);
       dblGaus->SetParameter(1, Q0Fit);
@@ -90,15 +134,24 @@ SPEFitter::GenerateSeeds(TH1 *hspec, const Double_t Q0, const Double_t s0, const
       dblGaus->SetParLimits(4, std::max(Q0Fit + 0.5 * s0Fit, Q1 - 5.0 * s0Fit), Q1 + 2.5 * s0Fit);
       dblGaus->SetParameter(5, 2.0 * s0Fit);
       dblGaus->SetParLimits(5, 1.5 * s0Fit, 10.0 * s0Fit);
-      hspec->Fit(dblGaus, "LRQ");
+      TFitResultPtr dblGausResult = hspec->Fit(dblGaus, "LRQ");
 
-      pedAmp = dblGaus->GetParameter(0);
-      seeds["Q0"] = Q0Fit = dblGaus->GetParameter(1);
-      seeds["#sigma_{0}"] = s0Fit = dblGaus->GetParameter(2);
-      seeds["Q"] = Q1 = dblGaus->GetParameter(4);
-      seeds["#sigma"] = dblGaus->GetParameter(5);
-      seeds["pedPop"] = pedPop = pedAmp * s0Fit * TMath::Sqrt(TMath::TwoPi()) / wbin;
-      seeds["#mu"] = TMath::Log(seeds.at("Norm") / pedPop);
+      if (fitIsUsable(dblGausResult, dblGaus, 6)) {
+         pedAmp = dblGaus->GetParameter(0);
+         seeds["Q0"] = Q0Fit = dblGaus->GetParameter(1);
+         seeds["#sigma_{0}"] = s0Fit = dblGaus->GetParameter(2);
+         seeds["Q"] = Q1 = dblGaus->GetParameter(4);
+         seeds["#sigma"] = dblGaus->GetParameter(5);
+         seeds["pedPop"] = pedPop = pedAmp * s0Fit * TMath::Sqrt(TMath::TwoPi()) / wbin;
+         seeds["#mu"] = estimateMu(pedPop);
+      } else {
+         Warning("GenerateSeeds", "Double-pedestal fit failed for %s; retaining single-Gaussian seeds",
+                 hspec->GetName());
+         seeds["pedPop"] = pedPop;
+         seeds["#mu"] = mu;
+         seeds["Q"] = Q1;
+         seeds["#sigma"] = 2.0 * s0Fit;
+      }
 
       if (m_verbose > 1) {
          Info("GenerateSeeds",
@@ -106,13 +159,14 @@ SPEFitter::GenerateSeeds(TH1 *hspec, const Double_t Q0, const Double_t s0, const
               "%.2e\n\tsigma = %.2e\n\tmu = %.2f",
               hspec->GetName(), Q0, s0, Q0Fit, s0Fit, Q1, seeds.at("#sigma"), seeds.at("#mu"));
       }
+               }
 
    } else {
       Warning("GenerateSeeds", "binWidth is > 2 sigma0, cannot pre-fit pedestal");
       // Just use the initial estimates
       seeds["pedPop"] = pedPop;
       seeds["#mu"] = mu;
-      seeds["Q"] = Q0 + (mean - Q0) / mu;
+      seeds["Q"] = Q0 + estimateGain(Q0, mu);
       seeds["#sigma"] = 2.0 * s0;
    }
 
@@ -122,7 +176,6 @@ SPEFitter::GenerateSeeds(TH1 *hspec, const Double_t Q0, const Double_t s0, const
       Double_t content = hspec->GetBinContent(bin);
       Double_t error = hspec->GetBinError(bin);
       Double_t binLowEdge = hspec->GetBinLowEdge(bin);
-      Double_t binCenter = hspec->GetBinCenter(bin);
       Double_t binUpEdge = binLowEdge + wbin;
       // fill xMin and xMax
       if (content > 0.0 && error / content < errTol) {
@@ -132,17 +185,47 @@ SPEFitter::GenerateSeeds(TH1 *hspec, const Double_t Q0, const Double_t s0, const
          seeds["xMax"] = binUpEdge;
       }
    }
-   if (!seeds.contains("xMin") || !seeds.contains("xMax") ||
+      if (!seeds.contains("xMin") || !seeds.contains("xMax") || !std::isfinite(seeds["xMin"]) ||
+         !std::isfinite(seeds["xMax"]) ||
        ((seeds.contains("xMin") && seeds.contains("xMax") && seeds["xMin"] >= seeds["xMax"]))) {
       Error("GenerateSeeds", "Failed to find valid xMin and xMax for histogram %s", hspec->GetName());
       seeds["xMin"] = hspec->GetXaxis()->GetXmin();
       seeds["xMax"] = hspec->GetXaxis()->GetXmax();
    }
 
+   if (seeds.at("xMax") - seeds.at("xMin") < 2.0 * wbin) {
+      seeds["xMin"] = hspec->GetXaxis()->GetXmin();
+      seeds["xMax"] = hspec->GetXaxis()->GetXmax();
+   }
+
+   if (!std::isfinite(seeds["Q0"]))
+      seeds["Q0"] = 0.0;
+   if (!validPositive(seeds["#sigma_{0}"]))
+      seeds["#sigma_{0}"] = validPositive(wbin) ? wbin : 1.0;
+   if (!validPositive(seeds["#mu"]))
+      seeds["#mu"] = 0.25;
+   const Double_t gainFloor = std::max(2.0 * seeds["#sigma_{0}"], wbin);
+   if (!validPositive(seeds["Q"]) || seeds["Q"] <= seeds["Q0"])
+      seeds["Q"] = std::max(seeds["Q0"] + gainFloor, gainFloor);
+   if (!validPositive(seeds["#sigma"]))
+      seeds["#sigma"] = 2.0 * seeds["#sigma_{0}"];
+   seeds["#sigma"] = std::max(seeds["#sigma"], 0.5 * seeds["#sigma_{0}"]);
+   if (!validPositive(seeds["pedPop"]))
+      seeds["pedPop"] = seeds["Norm"] * TMath::Exp(-seeds["#mu"]);
+
    // Calculate the slope of the tail (#alpha)
-   Double_t lnRise = TMath::Log(pePeakVal - hspec->GetBinContent(hspec->FindBin(seeds.at("xMax"))));
+   const Double_t tailContent = hspec->GetBinContent(hspec->FindBin(seeds.at("xMax")));
+   const Double_t tailExcess = pePeakVal - tailContent;
    Double_t run = seeds.at("xMax") - hspec->GetBinCenter(hspec->GetMaximumBin());
-   seeds["#alpha"] = lnRise / run;
+   const Double_t fallbackAlpha = 1.0 / std::max(std::abs(seeds.at("Q")), seeds.at("#sigma_{0}"));
+   if (validPositive(tailExcess) && validPositive(run)) {
+      const Double_t alpha = TMath::Log(tailExcess) / run;
+      seeds["#alpha"] = validPositive(alpha) ? alpha : fallbackAlpha;
+   } else {
+      seeds["#alpha"] = fallbackAlpha;
+   }
+   if (!validPositive(seeds["#alpha"]))
+      seeds["#alpha"] = 1.0 / std::max(seeds["Q"], seeds["#sigma_{0}"]);
 
    seeds["w"] = 0.2; // Fraction of PEs that miss the first dynode
    seeds["#lambda"] = 1.0 / seeds.at("Q");
@@ -282,14 +365,13 @@ SPEFitter::CreateDFTmethod(TH1 *hspec, PMType::Response sper, Double_t Q0, Doubl
    limits["#kappa"] = {0.0, 25.0 * seeds.at("#kappa")};
    limits["Q"] = {0.75 * seeds.at("Q"), 1.5 * seeds.at("Q")};
    limits["#lambda"] = limits["#theta"] = {1.0 / limits.at("Q").second, 1.0 / limits.at("Q").first};
+   seeds["#sigma"] = std::max(seeds.at("#sigma"), 3.0 * seeds.at("#sigma_{0}"));
    Bool_t hasS1seed = seeds.find("#sigma") != seeds.end();
    Double_t s1 = hasS1seed ? seeds.at("#sigma") : 2.5 * seeds.at("#sigma_{0}");
    limits["#sigma"] = {s0, 1.5 * s1};
    limits["#alpha"] = limits["#alpha_{1}"] =
       limits["#alpha_{2}"] = {0.1 * seeds.at("#alpha"), 5.0 * seeds.at("#alpha")};
    limits["w"] = limits["w_{1}"] = limits["w_{2}"] = {0.01, 1.0 - std::numeric_limits<Double_t>::epsilon()};
-   seeds["#sigma"] = 3.0 * seeds.at("#sigma_{0}");
-
    Int_t minBin = hspec->GetBin(seeds.at("xMin"));
    Int_t maxBin = hspec->GetBin(seeds.at("xMax"));
    UInt_t nBins = maxBin - minBin;

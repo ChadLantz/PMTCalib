@@ -8,6 +8,8 @@ set(CMAKE_CXX_STANDARD ${ROOT_CXX_STANDARD})
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(FFTW3 REQUIRED IMPORTED_TARGET fftw3)
 
+option(PMTCalib_Tests "Build PMTCalib regression tests" OFF)
+
 file(GLOB SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cc)
 file(GLOB HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/src/*.h)
 install(FILES ${HEADERS} DESTINATION include)
@@ -82,6 +84,21 @@ if(DEFINED PMTCalib_Examples)
     endforeach(example IN LIST EXAMPLES)
     
 endif(DEFINED PMTCalib_Examples)
+
+if(PMTCalib_Tests)
+    enable_testing()
+    add_executable(seed_regression tests/seed_regression.cc)
+    target_include_directories(seed_regression PRIVATE
+        $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>
+        ${ROOT_INCLUDE_DIRS}
+    )
+    target_link_libraries(seed_regression PRIVATE
+        PMTCalib
+        ${ROOT_LIBRARIES}
+        ${ROOT_COMPONENT_LIBRARIES}
+    )
+    add_test(NAME PMTCalib.seed_regression COMMAND seed_regression)
+endif(PMTCalib_Tests)
 
 #----------------------------------------------------------------------------
 # Export include dir variable for downstream use (optional)
