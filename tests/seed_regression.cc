@@ -1,10 +1,10 @@
-#include "DFTmethod.h"
-#include "NumIntegration.h"
+#include "DFTmethod.h" // IWYU pragma: keep
+#include "NumIntegration.h" // IWYU pragma: keep
 #include "PMT.h"
-#include "PMTModel.h"
+#include "PMTModel.h" // IWYU pragma: keep
 #include "SPEFitter.h"
 
-#include "TH1D.h"
+#include "TH1D.h" // IWYU pragma: keep
 
 #include <cassert>
 #include <cmath>
@@ -58,6 +58,22 @@ TH1D *MakeFlatTailSpectrum()
    return spectrum;
 }
 
+TH1D *MakeShiftedSparseSpectrum()
+{
+   auto *spectrum = new TH1D("shiftedSparse", "shiftedSparse", 100, 0.0, 200.0);
+   spectrum->Fill(35.0, 12.0);
+   spectrum->Fill(75.0, 4.0);
+   spectrum->Fill(120.0, 2.0);
+   return spectrum;
+}
+
+TH1D *MakeSingleSpikeSpectrum()
+{
+   auto *spectrum = new TH1D("singleSpike", "singleSpike", 100, -20.0, 180.0);
+   spectrum->Fill(80.0, 25.0);
+   return spectrum;
+}
+
 void CheckSpectrum(TH1 *spectrum, Double_t Q0, Double_t s0)
 {
    SPEFitter fitter;
@@ -91,5 +107,7 @@ int main()
 
    CheckSpectrum(MakeSparseSpectrum(), 0.0, s0);
    CheckSpectrum(MakeFlatTailSpectrum(), 0.0, s0);
+   CheckSpectrum(MakeShiftedSparseSpectrum(), 35.0, s0);
+   CheckSpectrum(MakeSingleSpikeSpectrum(), 0.0, s0);
    return 0;
 }

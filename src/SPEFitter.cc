@@ -213,7 +213,40 @@ SPEFitter::GenerateSeeds(TH1 *hspec, const Double_t Q0, const Double_t s0, const
    if (!validPositive(seeds["pedPop"]))
       seeds["pedPop"] = seeds["Norm"] * TMath::Exp(-seeds["#mu"]);
 
+   // Use a small weighted neighborhood to identify a resolved SPE peak without
+   // making the seed path depend on an optional ROOT spectrum component.
+   const Int_t firstPeakBin = std::max(1, hspec->FindBin(seeds["Q0"] + 2.0 * seeds["#sigma_{0}"]));
+   const Int_t lastPeakBin = std::min(hspec->GetNbinsX(), hspec->FindBin(seeds["xMax"]));
+   Int_t peakBin = -1;
+   const Double_t expectedPeak = seeds["Q0"] + seeds["Q"];
+   Double_t peakScore = std::numeric_limits<Double_t>::infinity();
+   for (Int_t bin = firstPeakBin + 1; bin < lastPeakBin; ++bin) {
+      const Double_t left = hspec->GetBinContent(bin - 1);
+      const Double_t center = hspec->GetBinContent(bin);
+      const Double_t right = hspec->GetBinContent(bin + 1);
+      const Double_t smoothed = (left + 2.0 * center + right) / 4.0;
+      const Double_t leftSmoothed = (hspec->GetBinContent(bin - 2) + 2.0 * left + center) / 4.0;
+      const Double_t rightSmoothed = (center + 2.0 * right + hspec->GetBinContent(bin + 2)) / 4.0;
+      const Double_t prominence = smoothed - std::max(leftSmoothed, rightSmoothed);
+      if (smoothed <= leftSmoothed || smoothed < rightSmoothed || prominence < std::max(2.0, 0.05 * smoothed))
+         continue;
+
+      const Double_t distance = std::abs(hspec->GetBinCenter(bin) - expectedPeak);
+      if (distance < peakScore) {
+         peakScore = distance;
+         peakBin = bin;
+      }
+   }
+   if (peakBin > 0 && peakScore <= std::max(3.0 * seeds["#sigma_{0}"], 0.25 * seeds["Q"])) {
+      seeds["Q"] = hspec->GetBinCenter(peakBin) - seeds["Q0"];
+      if (!validPositive(seeds["Q"]))
+         seeds["Q"] = hspec->GetBinCenter(peakBin);
+      if (m_verbose > 1)
+         Info("GenerateSeeds", "Resolved SPE peak for %s near Q = %.2e", hspec->GetName(), seeds["Q"]);
+   }
+
    // Calculate the slope of the tail (#alpha)
+   pePeakVal = hspec->GetBinContent(hspec->FindBin(seeds.at("Q0") + seeds.at("Q")));
    const Double_t tailContent = hspec->GetBinContent(hspec->FindBin(seeds.at("xMax")));
    const Double_t tailExcess = pePeakVal - tailContent;
    Double_t run = seeds.at("xMax") - hspec->GetBinCenter(hspec->GetMaximumBin());

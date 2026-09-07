@@ -5,12 +5,10 @@
 #include "SPEFitter.h"
 
 #include "TApplication.h"
-#include "TH1D.h"
 #include "TError.h"
 #include "TCanvas.h"
 #include "TStopwatch.h"
-#include <TFitResultPtr.h>
-#include <Rtypes.h>
+#include "Rtypes.h"
 
 Int_t example1()
 {
