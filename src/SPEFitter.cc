@@ -46,8 +46,8 @@ SPEFitter::GenerateSeeds(TH1 *hspec, const Double_t Q0, const Double_t s0, const
    Double_t wbin = hspec->GetBinWidth(1);
    Double_t mean = hspec->GetMean();
    Int_t pedBin = hspec->FindBin(Q0);
-   Int_t firstPedBin = std::max(1, pedBin - 1);
-   Int_t lastPedBin = std::min(hspec->GetNbinsX(), pedBin + 1);
+   Int_t firstPedBin = std::max(1, hspec->FindBin(Q0 - s0));
+   Int_t lastPedBin = std::min(hspec->GetNbinsX(), hspec->FindBin(Q0 + 0.5 * s0));
    Double_t pedAmp = 0.0;
    for (Int_t bin = firstPedBin; bin <= lastPedBin; ++bin)
       pedAmp = std::max(pedAmp, hspec->GetBinContent(bin));
@@ -69,10 +69,10 @@ SPEFitter::GenerateSeeds(TH1 *hspec, const Double_t Q0, const Double_t s0, const
          return observedGain;
       return std::max(2.0 * std::abs(s0), wbin);
    };
-   auto fitIsUsable = [](const TFitResultPtr &result, const TF1 *fit, const Int_t npar) {
-      if (!result.Get() || !result->IsValid())
+   auto fitIsUsable = [](const TF1 *fit) {
+      if (!fit->IsValid())
          return false;
-      for (Int_t ipar = 0; ipar < npar; ++ipar) {
+      for (Int_t ipar = 0; ipar < fit->GetNpar(); ++ipar) {
          if (!std::isfinite(fit->GetParameter(ipar)))
             return false;
       }
@@ -91,8 +91,8 @@ SPEFitter::GenerateSeeds(TH1 *hspec, const Double_t Q0, const Double_t s0, const
       gaus->SetParLimits(0, 0.5 * pedAmp, seeds.at("Norm"));
       gaus->SetParLimits(1, Q0 - 0.5 * s0, Q0 + 0.5 * s0);
       gaus->SetParLimits(2, 0.5 * s0, 2.0 * s0);
-      TFitResultPtr gausResult = hspec->Fit(gaus, "LRQ");
-      if (!fitIsUsable(gausResult, gaus, 3)) {
+      hspec->Fit(gaus, "LRQ");
+      if (!fitIsUsable(gaus)) {
          Warning("GenerateSeeds", "Pedestal fit failed for %s; retaining dark-current seeds", hspec->GetName());
          seeds["pedPop"] = pedPop;
          seeds["#mu"] = mu;
@@ -134,9 +134,9 @@ SPEFitter::GenerateSeeds(TH1 *hspec, const Double_t Q0, const Double_t s0, const
       dblGaus->SetParLimits(4, std::max(Q0Fit + 0.5 * s0Fit, Q1 - 5.0 * s0Fit), Q1 + 2.5 * s0Fit);
       dblGaus->SetParameter(5, 2.0 * s0Fit);
       dblGaus->SetParLimits(5, 1.5 * s0Fit, 10.0 * s0Fit);
-      TFitResultPtr dblGausResult = hspec->Fit(dblGaus, "LRQ");
+      hspec->Fit(dblGaus, "LRQ");
 
-      if (fitIsUsable(dblGausResult, dblGaus, 6)) {
+      if (fitIsUsable(dblGaus)) {
          pedAmp = dblGaus->GetParameter(0);
          seeds["Q0"] = Q0Fit = dblGaus->GetParameter(1);
          seeds["#sigma_{0}"] = s0Fit = dblGaus->GetParameter(2);
@@ -218,6 +218,7 @@ SPEFitter::GenerateSeeds(TH1 *hspec, const Double_t Q0, const Double_t s0, const
    const Int_t firstPeakBin = std::max(1, hspec->FindBin(seeds["Q0"] + 2.0 * seeds["#sigma_{0}"]));
    const Int_t lastPeakBin = std::min(hspec->GetNbinsX(), hspec->FindBin(seeds["xMax"]));
    Int_t peakBin = -1;
+   Bool_t resolvedPeak = kFALSE;
    const Double_t expectedPeak = seeds["Q0"] + seeds["Q"];
    Double_t peakScore = std::numeric_limits<Double_t>::infinity();
    for (Int_t bin = firstPeakBin + 1; bin < lastPeakBin; ++bin) {
@@ -238,9 +239,42 @@ SPEFitter::GenerateSeeds(TH1 *hspec, const Double_t Q0, const Double_t s0, const
       }
    }
    if (peakBin > 0 && peakScore <= std::max(3.0 * seeds["#sigma_{0}"], 0.25 * seeds["Q"])) {
+      resolvedPeak = kTRUE;
       seeds["Q"] = hspec->GetBinCenter(peakBin) - seeds["Q0"];
       if (!validPositive(seeds["Q"]))
          seeds["Q"] = hspec->GetBinCenter(peakBin);
+
+      // Estimate the observed SPE width locally when no double-Gaussian
+      // refinement supplied a more informative width.
+      if (seeds["#sigma"] <= 2.0 * seeds["#sigma_{0}"]) {
+         const Int_t firstWidthBin = std::max(1, peakBin - 3);
+         const Int_t lastWidthBin = std::min(hspec->GetNbinsX(), peakBin + 3);
+         const Double_t baseline = std::min(hspec->GetBinContent(firstWidthBin),
+                                            hspec->GetBinContent(lastWidthBin));
+         Double_t weightSum = 0.0;
+         Double_t weightedMean = 0.0;
+         for (Int_t bin = firstWidthBin; bin <= lastWidthBin; ++bin) {
+            const Double_t weight = std::max(0.0, hspec->GetBinContent(bin) - baseline);
+            weightSum += weight;
+            weightedMean += weight * hspec->GetBinCenter(bin);
+         }
+
+         if (validPositive(weightSum)) {
+            weightedMean /= weightSum;
+            Double_t observedVariance = 0.0;
+            for (Int_t bin = firstWidthBin; bin <= lastWidthBin; ++bin) {
+               const Double_t weight = std::max(0.0, hspec->GetBinContent(bin) - baseline);
+               observedVariance += weight * TMath::Sq(hspec->GetBinCenter(bin) - weightedMean);
+            }
+            observedVariance /= weightSum;
+            const Double_t intrinsicVariance = observedVariance - TMath::Sq(seeds["#sigma_{0}"]);
+            const Double_t localSigma = intrinsicVariance > 0.0 ? TMath::Sqrt(intrinsicVariance) : 0.0;
+            if (validPositive(localSigma) && localSigma >= 0.5 * seeds["#sigma_{0}"] &&
+                localSigma <= 10.0 * seeds["#sigma_{0}"])
+               seeds["#sigma"] = localSigma;
+         }
+      }
+
       if (m_verbose > 1)
          Info("GenerateSeeds", "Resolved SPE peak for %s near Q = %.2e", hspec->GetName(), seeds["Q"]);
    }
@@ -250,7 +284,27 @@ SPEFitter::GenerateSeeds(TH1 *hspec, const Double_t Q0, const Double_t s0, const
    const Double_t tailContent = hspec->GetBinContent(hspec->FindBin(seeds.at("xMax")));
    const Double_t tailExcess = pePeakVal - tailContent;
    Double_t run = seeds.at("xMax") - hspec->GetBinCenter(hspec->GetMaximumBin());
-   const Double_t fallbackAlpha = 1.0 / std::max(std::abs(seeds.at("Q")), seeds.at("#sigma_{0}"));
+   Double_t valleyAlpha = 0.0;
+   if (resolvedPeak) {
+      Int_t valleyBin = -1;
+      Double_t valleyValue = std::numeric_limits<Double_t>::infinity();
+      for (Int_t bin = firstPeakBin; bin < peakBin; ++bin) {
+         const Double_t smoothed =
+            (hspec->GetBinContent(bin - 1) + 2.0 * hspec->GetBinContent(bin) + hspec->GetBinContent(bin + 1)) / 4.0;
+         if (smoothed < valleyValue) {
+            valleyValue = smoothed;
+            valleyBin = bin;
+         }
+      }
+      if (valleyBin > 0) {
+         const Double_t valleyDistance = hspec->GetBinCenter(valleyBin) - seeds["Q0"];
+         if (validPositive(valleyDistance))
+            valleyAlpha = 1.0 / valleyDistance;
+      }
+   }
+   const Double_t fallbackAlpha = validPositive(valleyAlpha)
+                                    ? valleyAlpha
+                                    : 1.0 / std::max(std::abs(seeds.at("Q")), seeds.at("#sigma_{0}"));
    if (validPositive(tailExcess) && validPositive(run)) {
       const Double_t alpha = TMath::Log(tailExcess) / run;
       seeds["#alpha"] = validPositive(alpha) ? alpha : fallbackAlpha;
