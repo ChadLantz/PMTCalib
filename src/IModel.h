@@ -27,6 +27,11 @@ public:
    inline Double_t GainError() const { return GainError(Parameters(), Errors()); };
 
    ////////////////////////////////////////////////////////////////////////////////
+   /// Get the ith parameter name
+   inline std::string GetParName(const UInt_t ipar){
+      return m_parSettings.at(ipar).Name();
+   }
+   ////////////////////////////////////////////////////////////////////////////////
    /// Set the parameter settings
    virtual void SetChiSquare(Double_t chi2) { m_chi2 = chi2; }
 
