@@ -1,4 +1,6 @@
 #include "SPEFitter.h"
+
+#include "PMType.h"
 #include "IModel.h"
 #include "NumIntegration.h"
 #include "DFTmethod.h"
@@ -13,6 +15,7 @@
 #include "Fit/ParameterSettings.h"
 #include "HFitInterface.h"
 #include "Math/Minimizer.h"
+
 #include "TH1.h"
 #include "TF1.h"
 #include "TMath.h"
@@ -40,7 +43,7 @@ std::map<std::string, Double_t>
 SPEFitter::GenerateSeeds(TH1 *hspec, const Double_t Q0, const Double_t s0, const Double_t errTol)
 {
    std::map<std::string, Double_t> seeds;
-   seeds["Q0"] = Q0;
+   seeds["Q_{0}"] = Q0;
    seeds["#sigma_{0}"] = s0;
    seeds["Norm"] = hspec->Integral();
    Double_t wbin = hspec->GetBinWidth(1);
@@ -99,67 +102,68 @@ SPEFitter::GenerateSeeds(TH1 *hspec, const Double_t Q0, const Double_t s0, const
          seeds["Q"] = Q0 + estimateGain(Q0, mu);
          seeds["#sigma"] = 2.0 * s0;
       } else {
-      // Adjust Q0 and sigma0 for this spectrum
-      pedAmp = gaus->GetParameter(0);
-      Double_t Q0Fit = gaus->GetParameter(1);
-      Double_t s0Fit = gaus->GetParameter(2);
-      pedPop = pedAmp * s0Fit * TMath::Sqrt(TMath::TwoPi()) / wbin; // Overestimates population as mu approaches zero
-      // Refine the estimate for mu and gain
-      mu = estimateMu(pedPop);
-      Double_t gain = estimateGain(Q0Fit, mu);
-      Double_t Q1 = Q0Fit + gain; // First estimate at 1PE peak location. Usually an overestimate
-      Double_t Q1amp = hspec->GetBinContent(hspec->FindBin(Q0Fit + gain));
-      if (!validPositive(Q1amp))
-         Q1amp = std::max(pedAmp, 1.0);
+         // Adjust Q0 and sigma0 for this spectrum
+         pedAmp = gaus->GetParameter(0);
+         Double_t Q0Fit = gaus->GetParameter(1);
+         Double_t s0Fit = gaus->GetParameter(2);
+         pedPop = pedAmp * s0Fit * TMath::Sqrt(TMath::TwoPi()) / wbin; // Overestimates population as mu approaches zero
+         // Refine the estimate for mu and gain
+         mu = estimateMu(pedPop);
+         Double_t gain = estimateGain(Q0Fit, mu);
+         Double_t Q1 = Q0Fit + gain; // First estimate at 1PE peak location. Usually an overestimate
+         Double_t Q1amp = hspec->GetBinContent(hspec->FindBin(Q0Fit + gain));
+         if (!validPositive(Q1amp))
+            Q1amp = std::max(pedAmp, 1.0);
 
-      if (m_verbose > 1) {
-         Info("GenerateSeeds",
-              "Fit pedestal of %s. Provided Q0 = %.2e, s0 = %.2e. Gave:\n\tQ0 = %.2e\n\ts0 = %.2e\n\tmu = %.2f\n\tgain "
-              "= %.2e\n\tQ1 = %.2e\n\tQ1amp = %.2e",
-              hspec->GetName(), Q0, s0, Q0Fit, s0Fit, mu, gain, Q1, Q1amp);
+         if (m_verbose > 1) {
+            Info("GenerateSeeds",
+                 "Fit pedestal of %s. Provided Q0 = %.2e, s0 = %.2e. Gave:\n\tQ0 = %.2e\n\ts0 = %.2e\n\tmu = "
+                 "%.2f\n\tgain "
+                 "= %.2e\n\tQ1 = %.2e\n\tQ1amp = %.2e",
+                 hspec->GetName(), Q0, s0, Q0Fit, s0Fit, mu, gain, Q1, Q1amp);
+         }
+
+         // Fit with a
+         TF1 *dblGaus =
+            new TF1("dblgaus", "gaus(0) + gaus(3)", Q0Fit - s0Fit, std::max(Q0Fit + 2.0 * s0Fit, Q1 + s0Fit));
+         dblGaus->SetParameter(0, 0.8 * pedAmp); // Overlap will reduce population
+         dblGaus->SetParLimits(0, 0.5 * pedAmp, 1.25 * pedAmp);
+         dblGaus->SetParameter(1, Q0Fit);
+         dblGaus->SetParLimits(1, Q0Fit - 0.25 * s0Fit, Q0Fit + 0.25 * s0Fit);
+         dblGaus->SetParameter(2, s0Fit);
+         dblGaus->SetParLimits(2, 0.8 * s0Fit, 1.2 * s0Fit);
+         dblGaus->SetParameter(3, Q1amp);
+         dblGaus->SetParLimits(3, 0.5 * Q1amp, 2.0 * Q1amp);
+         dblGaus->SetParameter(4, 0.8 * Q1);
+         dblGaus->SetParLimits(4, std::max(Q0Fit + 0.5 * s0Fit, Q1 - 5.0 * s0Fit), Q1 + 2.5 * s0Fit);
+         dblGaus->SetParameter(5, 2.0 * s0Fit);
+         dblGaus->SetParLimits(5, 1.5 * s0Fit, 10.0 * s0Fit);
+         hspec->Fit(dblGaus, "LRQ");
+
+         if (fitIsUsable(dblGaus)) {
+            pedAmp = dblGaus->GetParameter(0);
+            seeds["Q_{0}"] = Q0Fit = dblGaus->GetParameter(1);
+            seeds["#sigma_{0}"] = s0Fit = dblGaus->GetParameter(2);
+            seeds["Q"] = Q1 = dblGaus->GetParameter(4);
+            seeds["#sigma"] = dblGaus->GetParameter(5);
+            seeds["pedPop"] = pedPop = pedAmp * s0Fit * TMath::Sqrt(TMath::TwoPi()) / wbin;
+            seeds["#mu"] = estimateMu(pedPop);
+         } else {
+            Warning("GenerateSeeds", "Double-pedestal fit failed for %s; retaining single-Gaussian seeds",
+                    hspec->GetName());
+            seeds["pedPop"] = pedPop;
+            seeds["#mu"] = mu;
+            seeds["Q"] = Q1;
+            seeds["#sigma"] = 2.0 * s0Fit;
+         }
+
+         if (m_verbose > 1) {
+            Info("GenerateSeeds",
+                 "Fit double Gauss of %s. Provided Q0 = %.2e, s0 = %.2e. Gave:\n\tQ0 = %.2e\n\ts0 = %.2e\n\tQ = "
+                 "%.2e\n\tsigma = %.2e\n\tmu = %.2f",
+                 hspec->GetName(), Q0, s0, Q0Fit, s0Fit, Q1, seeds.at("#sigma"), seeds.at("#mu"));
+         }
       }
-
-      // Fit with a
-      TF1 *dblGaus =
-         new TF1("dblgaus", "gaus(0) + gaus(3)", Q0Fit - s0Fit, std::max(Q0Fit + 2.0 * s0Fit, Q1 + s0Fit));
-      dblGaus->SetParameter(0, 0.8 * pedAmp); // Overlap will reduce population
-      dblGaus->SetParLimits(0, 0.5 * pedAmp, 1.25 * pedAmp);
-      dblGaus->SetParameter(1, Q0Fit);
-      dblGaus->SetParLimits(1, Q0Fit - 0.25 * s0Fit, Q0Fit + 0.25 * s0Fit);
-      dblGaus->SetParameter(2, s0Fit);
-      dblGaus->SetParLimits(2, 0.8 * s0Fit, 1.2 * s0Fit);
-      dblGaus->SetParameter(3, Q1amp);
-      dblGaus->SetParLimits(3, 0.5 * Q1amp, 2.0 * Q1amp);
-      dblGaus->SetParameter(4, 0.8 * Q1);
-      dblGaus->SetParLimits(4, std::max(Q0Fit + 0.5 * s0Fit, Q1 - 5.0 * s0Fit), Q1 + 2.5 * s0Fit);
-      dblGaus->SetParameter(5, 2.0 * s0Fit);
-      dblGaus->SetParLimits(5, 1.5 * s0Fit, 10.0 * s0Fit);
-      hspec->Fit(dblGaus, "LRQ");
-
-      if (fitIsUsable(dblGaus)) {
-         pedAmp = dblGaus->GetParameter(0);
-         seeds["Q0"] = Q0Fit = dblGaus->GetParameter(1);
-         seeds["#sigma_{0}"] = s0Fit = dblGaus->GetParameter(2);
-         seeds["Q"] = Q1 = dblGaus->GetParameter(4);
-         seeds["#sigma"] = dblGaus->GetParameter(5);
-         seeds["pedPop"] = pedPop = pedAmp * s0Fit * TMath::Sqrt(TMath::TwoPi()) / wbin;
-         seeds["#mu"] = estimateMu(pedPop);
-      } else {
-         Warning("GenerateSeeds", "Double-pedestal fit failed for %s; retaining single-Gaussian seeds",
-                 hspec->GetName());
-         seeds["pedPop"] = pedPop;
-         seeds["#mu"] = mu;
-         seeds["Q"] = Q1;
-         seeds["#sigma"] = 2.0 * s0Fit;
-      }
-
-      if (m_verbose > 1) {
-         Info("GenerateSeeds",
-              "Fit double Gauss of %s. Provided Q0 = %.2e, s0 = %.2e. Gave:\n\tQ0 = %.2e\n\ts0 = %.2e\n\tQ = "
-              "%.2e\n\tsigma = %.2e\n\tmu = %.2f",
-              hspec->GetName(), Q0, s0, Q0Fit, s0Fit, Q1, seeds.at("#sigma"), seeds.at("#mu"));
-      }
-               }
 
    } else {
       Warning("GenerateSeeds", "binWidth is > 2 sigma0, cannot pre-fit pedestal");
@@ -185,8 +189,8 @@ SPEFitter::GenerateSeeds(TH1 *hspec, const Double_t Q0, const Double_t s0, const
          seeds["xMax"] = binUpEdge;
       }
    }
-      if (!seeds.contains("xMin") || !seeds.contains("xMax") || !std::isfinite(seeds["xMin"]) ||
-         !std::isfinite(seeds["xMax"]) ||
+   if (!seeds.contains("xMin") || !seeds.contains("xMax") || !std::isfinite(seeds["xMin"]) ||
+       !std::isfinite(seeds["xMax"]) ||
        ((seeds.contains("xMin") && seeds.contains("xMax") && seeds["xMin"] >= seeds["xMax"]))) {
       Error("GenerateSeeds", "Failed to find valid xMin and xMax for histogram %s", hspec->GetName());
       seeds["xMin"] = hspec->GetXaxis()->GetXmin();
@@ -198,15 +202,15 @@ SPEFitter::GenerateSeeds(TH1 *hspec, const Double_t Q0, const Double_t s0, const
       seeds["xMax"] = hspec->GetXaxis()->GetXmax();
    }
 
-   if (!std::isfinite(seeds["Q0"]))
-      seeds["Q0"] = 0.0;
+   if (!std::isfinite(seeds["Q_{0}"]))
+      seeds["Q_{0}"] = 0.0;
    if (!validPositive(seeds["#sigma_{0}"]))
       seeds["#sigma_{0}"] = validPositive(wbin) ? wbin : 1.0;
    if (!validPositive(seeds["#mu"]))
       seeds["#mu"] = 0.25;
    const Double_t gainFloor = std::max(2.0 * seeds["#sigma_{0}"], wbin);
-   if (!validPositive(seeds["Q"]) || seeds["Q"] <= seeds["Q0"])
-      seeds["Q"] = std::max(seeds["Q0"] + gainFloor, gainFloor);
+   if (!validPositive(seeds["Q"]) || seeds["Q"] <= seeds["Q_{0}"])
+      seeds["Q"] = std::max(seeds["Q_{0}"] + gainFloor, gainFloor);
    if (!validPositive(seeds["#sigma"]))
       seeds["#sigma"] = 2.0 * seeds["#sigma_{0}"];
    seeds["#sigma"] = std::max(seeds["#sigma"], 0.5 * seeds["#sigma_{0}"]);
@@ -215,11 +219,11 @@ SPEFitter::GenerateSeeds(TH1 *hspec, const Double_t Q0, const Double_t s0, const
 
    // Use a small weighted neighborhood to identify a resolved SPE peak without
    // making the seed path depend on an optional ROOT spectrum component.
-   const Int_t firstPeakBin = std::max(1, hspec->FindBin(seeds["Q0"] + 2.0 * seeds["#sigma_{0}"]));
+   const Int_t firstPeakBin = std::max(1, hspec->FindBin(seeds["Q_{0}"] + 2.0 * seeds["#sigma_{0}"]));
    const Int_t lastPeakBin = std::min(hspec->GetNbinsX(), hspec->FindBin(seeds["xMax"]));
    Int_t peakBin = -1;
    Bool_t resolvedPeak = kFALSE;
-   const Double_t expectedPeak = seeds["Q0"] + seeds["Q"];
+   const Double_t expectedPeak = seeds["Q_{0}"] + seeds["Q"];
    Double_t peakScore = std::numeric_limits<Double_t>::infinity();
    for (Int_t bin = firstPeakBin + 1; bin < lastPeakBin; ++bin) {
       const Double_t left = hspec->GetBinContent(bin - 1);
@@ -240,7 +244,7 @@ SPEFitter::GenerateSeeds(TH1 *hspec, const Double_t Q0, const Double_t s0, const
    }
    if (peakBin > 0 && peakScore <= std::max(3.0 * seeds["#sigma_{0}"], 0.25 * seeds["Q"])) {
       resolvedPeak = kTRUE;
-      seeds["Q"] = hspec->GetBinCenter(peakBin) - seeds["Q0"];
+      seeds["Q"] = hspec->GetBinCenter(peakBin) - seeds["Q_{0}"];
       if (!validPositive(seeds["Q"]))
          seeds["Q"] = hspec->GetBinCenter(peakBin);
 
@@ -249,8 +253,7 @@ SPEFitter::GenerateSeeds(TH1 *hspec, const Double_t Q0, const Double_t s0, const
       if (seeds["#sigma"] <= 2.0 * seeds["#sigma_{0}"]) {
          const Int_t firstWidthBin = std::max(1, peakBin - 3);
          const Int_t lastWidthBin = std::min(hspec->GetNbinsX(), peakBin + 3);
-         const Double_t baseline = std::min(hspec->GetBinContent(firstWidthBin),
-                                            hspec->GetBinContent(lastWidthBin));
+         const Double_t baseline = std::min(hspec->GetBinContent(firstWidthBin), hspec->GetBinContent(lastWidthBin));
          Double_t weightSum = 0.0;
          Double_t weightedMean = 0.0;
          for (Int_t bin = firstWidthBin; bin <= lastWidthBin; ++bin) {
@@ -280,7 +283,7 @@ SPEFitter::GenerateSeeds(TH1 *hspec, const Double_t Q0, const Double_t s0, const
    }
 
    // Calculate the slope of the tail (#alpha)
-   pePeakVal = hspec->GetBinContent(hspec->FindBin(seeds.at("Q0") + seeds.at("Q")));
+   pePeakVal = hspec->GetBinContent(hspec->FindBin(seeds.at("Q_{0}") + seeds.at("Q")));
    const Double_t tailContent = hspec->GetBinContent(hspec->FindBin(seeds.at("xMax")));
    const Double_t tailExcess = pePeakVal - tailContent;
    Double_t run = seeds.at("xMax") - hspec->GetBinCenter(hspec->GetMaximumBin());
@@ -297,14 +300,13 @@ SPEFitter::GenerateSeeds(TH1 *hspec, const Double_t Q0, const Double_t s0, const
          }
       }
       if (valleyBin > 0) {
-         const Double_t valleyDistance = hspec->GetBinCenter(valleyBin) - seeds["Q0"];
+         const Double_t valleyDistance = hspec->GetBinCenter(valleyBin) - seeds["Q_{0}"];
          if (validPositive(valleyDistance))
             valleyAlpha = 1.0 / valleyDistance;
       }
    }
-   const Double_t fallbackAlpha = validPositive(valleyAlpha)
-                                    ? valleyAlpha
-                                    : 1.0 / std::max(std::abs(seeds.at("Q")), seeds.at("#sigma_{0}"));
+   const Double_t fallbackAlpha =
+      validPositive(valleyAlpha) ? valleyAlpha : 1.0 / std::max(std::abs(seeds.at("Q")), seeds.at("#sigma_{0}"));
    if (validPositive(tailExcess) && validPositive(run)) {
       const Double_t alpha = TMath::Log(tailExcess) / run;
       seeds["#alpha"] = validPositive(alpha) ? alpha : fallbackAlpha;
@@ -396,14 +398,14 @@ TFitResultPtr SPEFitter::HybridMinimize(IModel *model, TH1 *hspec, Int_t maxIter
 /// @param Q0 Pedestal mean (usually from dark current data)
 /// @param s0 Pedestal width (usually from dark current data)
 /// @return ROOT::Fit::FitResult containing fit results
-NumIntegration *
-SPEFitter::CreateNumethod(TH1 *hspec, PMType::Response sper, Double_t Q0, Double_t s0, const Double_t errTol)
+NumIntegration *SPEFitter::MakeNumethod(TH1 *hspec, const PMType::Response sper, const Double_t Q0, const Double_t s0,
+                                        const Double_t errTol)
 {
    std::map<std::string, Double_t> seeds = GenerateSeeds(hspec, Q0, s0, errTol);
    std::map<std::string, std::pair<Double_t, Double_t>> limits;
 
    limits["Norm"] = {0.75 * seeds.at("Norm"), 1.25 * seeds.at("Norm")};
-   limits["Q0"] = {seeds.at("Q0") - seeds.at("#sigma_{0}"), seeds.at("Q0") + seeds.at("#sigma_{0}")};
+   limits["Q_{0}"] = {seeds.at("Q_{0}") - seeds.at("#sigma_{0}"), seeds.at("Q_{0}") + seeds.at("#sigma_{0}")};
    limits["#sigma_{0}"] = {0.5 * seeds.at("#sigma_{0}"), 3.0 * seeds.at("#sigma_{0}")};
    limits["#mu"] = {std::max(0.5 * seeds.at("#mu"), 0.02), std::max(2.0 * seeds.at("#mu"), 1.0)};
    limits["#lambda"] = {0, 1.0};
@@ -421,7 +423,7 @@ SPEFitter::CreateNumethod(TH1 *hspec, PMType::Response sper, Double_t Q0, Double
    NumIntegration *num = new NumIntegration(nBins, hspec->GetBinWidth(minBin), hspec->GetBinLowEdge(minBin),
                                             hspec->GetBinLowEdge(maxBin) + hspec->GetBinWidth(maxBin), sper);
    for (UInt_t ipar = 0; ipar < num->NPar(); ++ipar) {
-      std::string parName = num->ParSettings(ipar).Name();
+      std::string parName = num->GetParName(ipar);
       num->SetParameter(ipar, seeds.at(parName));
       num->SetParLimits(ipar, limits.at(parName).first, limits.at(parName).second);
    }
@@ -438,14 +440,14 @@ SPEFitter::CreateNumethod(TH1 *hspec, PMType::Response sper, Double_t Q0, Double
 /// @param Q0 Pedestal mean (usually from dark current data)
 /// @param s0 Pedestal width (usually from dark current data)
 /// @return ROOT::Fit::FitResult containing fit results
-DFTmethod *
-SPEFitter::CreateDFTmethod(TH1 *hspec, PMType::Response sper, Double_t Q0, Double_t s0, const Double_t errTol)
+DFTmethod *SPEFitter::MakeDFTmethod(TH1 *hspec, const PMType::Response sper, const Double_t Q0, const Double_t s0,
+                                    const Double_t errTol)
 {
    std::map<std::string, Double_t> seeds = GenerateSeeds(hspec, Q0, s0, errTol);
    std::map<std::string, std::pair<Double_t, Double_t>> limits;
 
    limits["Norm"] = {0.9 * seeds.at("Norm"), 1.1 * seeds.at("Norm")};
-   limits["Q0"] = {seeds.at("Q0") - seeds.at("#sigma_{0}"), seeds.at("Q0") + seeds.at("#sigma_{0}")};
+   limits["Q_{0}"] = {seeds.at("Q_{0}") - seeds.at("#sigma_{0}"), seeds.at("Q_{0}") + seeds.at("#sigma_{0}")};
    limits["#sigma_{0}"] = {0.0, 3.0 * seeds.at("#sigma_{0}")};
    limits["#mu"] = {std::max(0.5 * seeds.at("#mu"), 0.02), std::max(2.0 * seeds.at("#mu"), 1.0)};
    limits["#lambda"] = {0.0, 1.0};
@@ -481,7 +483,8 @@ SPEFitter::CreateDFTmethod(TH1 *hspec, PMType::Response sper, Double_t Q0, Doubl
 /// @param Q0 Pedestal mean (usually from dark current data)
 /// @param s0 Pedestal width (usually from dark current data)
 /// @return ROOT::Fit::FitResult containing fit results
-PMTModel *SPEFitter::CreatePMTModel(TH1 *hspec, PMType::Model model, Double_t Q0, Double_t s0, const Double_t errTol)
+PMTModel *SPEFitter::MakePMTModel(TH1 *hspec, const PMType::Model model, const Double_t Q0, const Double_t s0,
+                                  const Double_t errTol)
 {
    std::map<std::string, Double_t> seeds = GenerateSeeds(hspec, Q0, s0, errTol);
    Int_t minBin = hspec->GetBin(seeds.at("xMin"));
@@ -493,8 +496,8 @@ PMTModel *SPEFitter::CreatePMTModel(TH1 *hspec, PMType::Model model, Double_t Q0
    pmt->SetParameter(0, seeds.at("Norm"));
    pmt->ParSettings(0).SetLimits(0.9 * seeds.at("Norm"), 1.1 * seeds.at("Norm"));
 
-   pmt->SetParameter(1, seeds.at("Q0"));
-   pmt->SetParLimits(1, seeds.at("Q0") - 0.25 * seeds.at("#sigma_{0}"), seeds.at("Q0") + 0.25 * seeds.at("#sigma_{0}"));
+   pmt->SetParameter(1, seeds.at("Q_{0}"));
+   pmt->SetParLimits(1, seeds.at("Q_{0}") - 0.25 * seeds.at("#sigma_{0}"), seeds.at("Q_{0}") + 0.25 * seeds.at("#sigma_{0}"));
 
    pmt->SetParameter(2, seeds.at("#sigma_{0}"));
    pmt->SetParLimits(2, 0.75 * seeds.at("#sigma_{0}"), 1.5 * seeds.at("#sigma_{0}"));
@@ -518,6 +521,95 @@ PMTModel *SPEFitter::CreatePMTModel(TH1 *hspec, PMType::Model model, Double_t Q0
    pmt->SetParLimits(7, 0.01, 1.0 - std::numeric_limits<Double_t>::epsilon());
 
    return pmt;
+}
+
+Bool_t SPEFitter::SeedModel(IModel *model, std::map<std::string, Double_t> seeds)
+{
+   if (!model) {
+      Error("SeedModel", "Nullptr provided for model");
+   }
+   if (seeds.empty()) {
+      Error("SeedModel", "No seeds provided to for model");
+      return kFALSE;
+   }
+   for (UInt_t ipar = 0; ipar < model->NPar(); ++ipar) {
+      std::string parName = model->GetParName(ipar);
+      auto it = seeds.find(parName);
+      if (it == seeds.end()) {
+         Error("SeedModel", "Could not find %s in seeds", parName.c_str());
+         return kFALSE;
+      }
+      model->SetParameter(ipar, it->second);
+   }
+   return kTRUE;
+}
+
+std::map<std::string, Double_t>
+SPEFitter::SeedModel(IModel *model, TH1 *hspec, const Double_t Q0, const Double_t s0, const Double_t errTol)
+{
+   if (!model || !hspec) {
+      Error("SeedModel", "Nullptr provided for %s", !model && !hspec ? "model and hspec" : !model ? "model" : "hspec");
+      return {};
+   }
+
+   auto seeds = GenerateSeeds(hspec, Q0, s0);
+   SeedModel(model, seeds);
+   return seeds;
+}
+
+Bool_t SPEFitter::SeedModel(TF1 *model, std::map<std::string, Double_t> seeds)
+{
+   if (!model) {
+      Error("SeedModel", "Nullptr provided for model");
+   }
+   if (seeds.empty()) {
+      Error("SeedModel", "No seeds provided to for model");
+      return kFALSE;
+   }
+   for (UInt_t ipar = 0; ipar < model->GetNpar(); ++ipar) {
+      std::string parName = model->GetParName(ipar);
+      auto it = seeds.find(parName);
+      if (it == seeds.end()) {
+         Error("SeedModel", "Could not find %s in seeds", parName.c_str());
+         return kFALSE;
+      }
+      model->SetParameter(ipar, it->second);
+   }
+   return kTRUE;
+}
+
+std::map<std::string, Double_t>
+SPEFitter::SeedModel(TF1 *model, TH1 *hspec, const Double_t Q0, const Double_t s0, const Double_t errTol)
+{
+   if (!model || !hspec) {
+      Error("SeedModel", "Nullptr provided for %s", !model && !hspec ? "model and hspec" : !model ? "model" : "hspec");
+      return {};
+   }
+
+   auto seeds = GenerateSeeds(hspec, Q0, s0);
+   SeedModel(model, seeds);
+   return seeds;
+}
+
+IModel *
+SPEFitter::MakeModel(const TH1 *hspec, const PMType::Method method, const PMType::Model model, const PMType::Response response)
+{
+   const Int_t nBins(hspec->GetNbinsX());
+   const Double_t wBin(hspec->GetBinWidth(1));
+   const Double_t xMin(hspec->GetXaxis()->GetXmin());
+   const Double_t xMax(hspec->GetXaxis()->GetXmax());
+   switch (method) {
+   case PMType::NumIntegration: return new NumIntegration(nBins, wBin, xMin, xMax, response); break;
+   case PMType::DFTmethod: return new DFTmethod(nBins, wBin, xMin, xMax, response); break;
+   case PMType::PMTModel: return new PMTModel(nBins, wBin, xMin, xMax, model); break;
+   }
+   return nullptr;
+}
+
+TF1 *SPEFitter::MakeTF1(const TH1 *hspec, const PMType::Method method, const PMType::Model model,
+                        const PMType::Response response)
+{
+   return MakeTF1(MakeModel(hspec, method, model, response));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
